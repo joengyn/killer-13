@@ -1,7 +1,7 @@
-# Tiến Lên Card Game - Development Guide
+# Killer 13 Card Game - Development Guide
 
 ## 📋 Project Overview
-This is a digital implementation of **Tiến Lên** (Vietnamese card game "13"), built in **Godot 4.5**. The game is a shedding-style card game where players compete to be the first to rid themselves of all cards by playing valid card combinations.
+This is a digital implementation of **Killer 13** (based on Tiến Lên, Vietnamese card game "13"), built in **Godot 4.5**. The game is a shedding-style card game where players compete to be the first to rid themselves of all cards by playing valid card combinations.
 
 For complete game rules, see [RULES.md](RULES.md).
 
