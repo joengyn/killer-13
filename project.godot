@@ -21,6 +21,16 @@ Constants="*res://scripts/constants.gd"
 CardLoader="*res://scripts/card_loader.gd"
 GameManager="*res://scripts/game_manager.gd"
 
+[display]
+
+window/size/viewport_width=1280
+window/size/viewport_height=720
+window/resizable=true
+
+[gui]
+
+theme/default_font_multichannel_signed_distance_field=true
+
 [rendering]
 
 renderer/rendering_method="gl_compatibility"

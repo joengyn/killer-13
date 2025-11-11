@@ -22,6 +22,15 @@ var game_over = false
 var turn_timer: Timer
 var table_display: Node2D
 var victory_overlay: Control
+var first_player_index: int = -1  # Player with 3♠ (starts the game)
+var first_turn_of_game: bool = true  # Only true at the very start
+var last_player_to_play: int = -1  # Tracks who played last (for round resets)
+
+# Player controls (Player 1 / Player 0 index)
+var selected_cards: Array[Card] = []
+var valid_playable_cards: Array[Card] = []
+var pass_button: Button
+var play_button: Button
 
 # ============================================================================
 # INITIALIZATION & SETUP
@@ -39,7 +48,17 @@ func _ready():
 		await get_tree().process_frame  # Wait for _ready
 
 	# Connect Start button
-	$VBoxContainer/HBoxContainer/StartButton.pressed.connect(_on_start_pressed)
+	$StartButton.pressed.connect(_on_start_pressed)
+
+	# Position and size UI elements
+	var viewport_size = get_viewport().get_visible_rect().size
+
+	# Fill screen with background
+	$ColorRect.position = Vector2.ZERO
+	$ColorRect.size = viewport_size
+
+	# Center start button
+	$StartButton.position = (viewport_size - $StartButton.custom_minimum_size) / 2
 
 	# Create hand position nodes for each player
 	_setup_hand_positions()
@@ -100,7 +119,16 @@ func display_hands():
 		for card_idx in range(hand.cards.size()):
 			var card = hand.cards[card_idx]
 			var card_visual = card_scene.instantiate()
-			card_visual.set_card(card)
+
+			# Mark player 0 cards as clickable, flip CPU cards
+			if player_idx == 0:
+				card_visual.set_card(card)
+				card_visual.is_player_card = true
+				card_visual.card_clicked.connect(_on_card_clicked)
+			else:
+				# Flip CPU player cards to show card back
+				card_visual.card = card
+				card_visual.show_card_back = true
 
 			# Position cards in a row/column depending on player
 			match player_idx:
@@ -140,7 +168,7 @@ func _setup_player_buttons():
 	var viewport_size = get_viewport().get_visible_rect().size
 
 	# Pass button (left)
-	var pass_button = Button.new()
+	pass_button = Button.new()
 	pass_button.text = "Pass"
 	pass_button.custom_minimum_size = Constants.BUTTON_SIZE
 	pass_button.position = viewport_size - Vector2(Constants.BUTTON_SIZE.x * 2 + Constants.BUTTON_SPACING + Constants.BUTTON_MARGIN, Constants.BUTTON_SIZE.y + Constants.BUTTON_MARGIN)
@@ -148,7 +176,7 @@ func _setup_player_buttons():
 	add_child(pass_button)
 
 	# Play button (right)
-	var play_button = Button.new()
+	play_button = Button.new()
 	play_button.text = "Play"
 	play_button.custom_minimum_size = Constants.BUTTON_SIZE
 	play_button.position = viewport_size - Vector2(Constants.BUTTON_SIZE.x + Constants.BUTTON_MARGIN, Constants.BUTTON_SIZE.y + Constants.BUTTON_MARGIN)
@@ -159,22 +187,214 @@ func _setup_player_buttons():
 # GAME FLOW & INPUT
 # ============================================================================
 
+func _on_card_clicked(card: Card):
+	"""Handle card click - toggle selection"""
+	if card in selected_cards:
+		selected_cards.erase(card)
+	else:
+		selected_cards.append(card)
+
+	if selected_cards.is_empty():
+		print("Selected cards: none")
+	else:
+		print("Selected cards: %s" % Combination.combo_to_string(selected_cards))
+
+func calculate_valid_playable_cards():
+	"""Calculate which cards player 0 can play this round"""
+	var players = game_manager.get_players()
+	var hand = players[0]
+	var table_combo = game_state.get_table_combo()
+
+	valid_playable_cards.clear()
+
+	# First turn of game - only first player must have 3♠
+	if table_combo.is_empty() and first_turn_of_game and first_player_index == 0:
+		var three_spades = hand.find_three_of_spades()
+		if three_spades:
+			valid_playable_cards.append(three_spades)
+		return
+
+	# If table is empty, any card can be played
+	if table_combo.is_empty():
+		valid_playable_cards = hand.cards.duplicate()
+		return
+
+	# Otherwise, find cards that can beat the current combo
+	# For each card in hand, check if it can participate in a beating combo
+	for card in hand.cards:
+		if _can_card_participate_in_beating_combo(card, hand, table_combo):
+			valid_playable_cards.append(card)
+
+func _can_card_participate_in_beating_combo(card: Card, hand: Hand, table_combo: Array) -> bool:
+	"""Check if a card can be part of any combo that beats the table"""
+	# Try to find if this card can be part of a beating combo
+	# This is a simplified check - could be enhanced
+
+	var table_type = Combination.detect_type(table_combo)
+	var table_strength = Combination.get_strength(table_combo)
+
+	# Check bombs (can beat 2s)
+	if Combination.detect_type([card]) == Combination.Type.QUAD:
+		if Combination.beats([card], table_combo):
+			return true
+
+	# Simple approach: try single card, pair, triple
+	if Combination.beats([card], table_combo):
+		return true
+
+	# Check pairs
+	var same_rank = hand.get_cards_by_rank(card.rank)
+	if same_rank.size() >= 2:
+		if Combination.beats([same_rank[0], same_rank[1]], table_combo):
+			return true
+
+	# Check triples
+	if same_rank.size() >= 3:
+		if Combination.beats([same_rank[0], same_rank[1], same_rank[2]], table_combo):
+			return true
+
+	return false
+
+func apply_valid_card_highlights():
+	"""Apply visual indicators to cards that can be played"""
+	var card_visuals_p0 = card_visuals[0]
+	var hand = game_manager.get_players()[0]
+
+	for card_visual in card_visuals_p0:
+		if card_visual.card in valid_playable_cards:
+			# Apply yellow tint to indicate it's playable
+			card_visual.modulate = Color(1.3, 1.3, 0.5, 1.0)  # Yellowish tint
+		else:
+			# Reset modulation if not playable
+			if not card_visual.selected:
+				card_visual.modulate = Color.WHITE
+			else:
+				card_visual.modulate = Color(1.3, 1.3, 1.3)  # Keep selected color
+
 func _on_pass_pressed():
 	"""Handle pass button pressed"""
-	pass
+	if game_state.current_player != 0:
+		return  # Not player's turn
+
+	game_state.mark_player_passed()
+	print("Player 0 passes")
+
+	# Check if all others passed (reset round)
+	if game_state.all_others_passed():
+		print("All other players passed! Resetting round...")
+		_reset_round_and_set_current_player(last_player_to_play)
+		print("Round reset!")
+
+	# Clear selection
+	selected_cards.clear()
+	_refresh_hand_display()
+
+	# Move to next player and resume timer
+	game_state.next_player()
+	turn_timer.start()
 
 func _on_play_pressed():
 	"""Handle play button pressed"""
-	pass
+	if game_state.current_player != 0:
+		return  # Not player's turn
+
+	if game_state.has_current_player_passed():
+		print("Player 0 has already passed this round!")
+		return
+
+	if selected_cards.is_empty():
+		print("No cards selected!")
+		return
+
+	# Validate the play
+	var is_valid = false
+
+	if game_state.get_table_combo().is_empty():
+		# First play of round - check validity
+		var combo_type = Combination.detect_type(selected_cards)
+		print("DEBUG: First play of round. Selected: %s, Type: %s" % [Combination.combo_to_string(selected_cards), Combination.type_to_string(combo_type)])
+		is_valid = Combination.is_valid(selected_cards)
+		print("DEBUG: is_valid after Combination.is_valid(): %s" % is_valid)
+		# First turn of game must include 3♠ (only from first_player_index)
+		if is_valid and first_turn_of_game and 0 == first_player_index:
+			is_valid = Combination.contains_three_of_spades(selected_cards)
+			print("DEBUG: is_valid after 3♠ check: %s" % is_valid)
+	else:
+		# Must beat existing combo
+		is_valid = Combination.beats(selected_cards, game_state.get_table_combo())
+
+	if is_valid:
+		# Get player hand
+		var hand = game_manager.get_players()[0]
+
+		# Remove cards from hand
+		hand.remove_cards(selected_cards)
+		game_state.set_table_combo(selected_cards)
+		game_state.mark_player_played()
+		last_player_to_play = 0  # Track that player 0 made this play
+
+		# Mark that we've passed the first turn of the game
+		first_turn_of_game = false
+
+		# Animate cards to table and update display
+		await _animate_played_cards(0, selected_cards)
+		_update_table_display()
+
+		print("Player 0 plays: %s" % [Combination.combo_to_string(selected_cards)])
+
+		# Check if player won
+		if hand.is_empty():
+			game_state.winner = 0
+			game_over = true
+			turn_timer.stop()
+			# Wait for animations to finish before showing victory
+			await get_tree().create_timer(Constants.VICTORY_DELAY).timeout
+			_show_victory_overlay()
+			return
+
+		# Clear selection
+		selected_cards.clear()
+		_refresh_hand_display()
+
+		# Move to next player and resume timer
+		game_state.next_player()
+		turn_timer.start()
+	else:
+		print("Invalid play!")
+		# Could add visual feedback here (red flash, etc.)
 
 func _on_start_pressed():
 	"""Start the game when Start button is clicked"""
 	game_manager.start_game()
 	game_state = game_manager.get_current_state()
-	$VBoxContainer/HBoxContainer/StartButton.visible = false
+	$StartButton.visible = false
 	is_playing = true
 	game_over = false
-	turn_timer.start()
+	first_turn_of_game = true
+
+	# Print game start message
+	print("\n" + "=".repeat(80))
+	print("TIẾN LÊN CARD GAME - Game Started")
+	print("=".repeat(80) + "\n")
+
+	# Find the first player (who has 3♠) and print initial hands
+	var players = game_manager.get_players()
+	print("Initial hands dealt:")
+	for i in range(4):
+		print("  Player %d (%d cards): %s" % [i, players[i].get_card_count(), players[i]._to_string()])
+		if players[i].find_three_of_spades():
+			first_player_index = i
+
+	print("\nPlayer %d has 3♠ and will start!" % first_player_index)
+	print("\n" + "-".repeat(80) + "\n")
+
+	# If player 0 starts, show valid cards; otherwise start timer
+	if game_state.current_player == 0:
+		calculate_valid_playable_cards()
+		apply_valid_card_highlights()
+		print("Player 0's turn - waiting for input")
+	else:
+		turn_timer.start()
 
 # ============================================================================
 # TURN EXECUTION
@@ -186,36 +406,60 @@ func _on_turn_timer_timeout():
 		turn_timer.stop()
 		return
 
+	# If it's player 0's turn, pause timer and wait for input
+	if game_state.current_player == 0:
+		# Check if all others have passed (round should reset)
+		if game_state.all_others_passed() and not game_state.get_table_combo().is_empty():
+			print("All other players passed! Resetting round...")
+			_reset_round_and_set_current_player(last_player_to_play)
+			print("Round reset!")
+			# Continue to next iteration without stopping timer
+			return
+
+		# If player 0 already passed this round and table isn't empty, auto-pass
+		if game_state.has_current_player_passed() and not game_state.get_table_combo().is_empty():
+			print("Player 0 has already passed - auto-passing")
+			game_state.next_player()
+			# Don't call turn_timer.start() here - let the loop continue naturally
+			return
+
+		turn_timer.stop()
+		calculate_valid_playable_cards()
+		apply_valid_card_highlights()
+		print("Player 0's turn - waiting for input")
+		return
+
 	var players = game_manager.get_players()
 	var current_player = game_state.current_player
 	var hand = players[current_player]
+	var is_valid = false  # Track if this turn had a valid play
 
 	# Get AI decision
-	var is_first_turn = game_state.get_table_combo().is_empty() and game_state.consecutive_passes == 0
+	var is_first_turn = game_state.get_table_combo().is_empty() and first_turn_of_game and current_player == first_player_index
 	var played_cards = SimpleAI.decide_play(hand, game_state, is_first_turn)
+
+	var round_was_reset = false
 
 	if played_cards.is_empty():
 		# Player passes
 		game_state.mark_player_passed()
 		print("Player %d passes" % current_player)
 
-		# Check if all others passed (reset round)
+		# Check if all others have passed
 		if game_state.all_others_passed():
-			game_state.reset_round()
-			# Clear table display when round resets
-			for child in table_display.get_children():
-				child.queue_free()
+			print("All other players passed! Resetting round...")
+			_reset_round_and_set_current_player(last_player_to_play)
 			print("Round reset!")
+			round_was_reset = true
 	else:
 		# Player plays
-		var is_valid = false
+		is_valid = false
 
 		if game_state.get_table_combo().is_empty():
 			# First play of round - check validity
 			is_valid = Combination.is_valid(played_cards)
 			# First turn of game must include 3♠
-			var is_first_turn_game = game_state.table_combo.is_empty() and game_state.consecutive_passes == 0
-			if is_valid and is_first_turn_game:
+			if is_valid and first_turn_of_game and current_player == first_player_index:
 				is_valid = Combination.contains_three_of_spades(played_cards)
 		else:
 			# Must beat existing combo
@@ -226,14 +470,19 @@ func _on_turn_timer_timeout():
 			hand.remove_cards(played_cards)
 			game_state.set_table_combo(played_cards)
 			game_state.mark_player_played()
+			last_player_to_play = current_player  # Track that this player made this play
 
-			# Animate cards to table and update display
+			# Mark that we've passed the first turn of the game
+			first_turn_of_game = false
+
+			# Animate cards to table and update display (don't await in timer callback)
 			_animate_played_cards(current_player, played_cards)
 			_update_table_display()
 
 			print("Player %d plays: %s" % [current_player, Combination.combo_to_string(played_cards)])
 
 			# Check if player won
+			print("DEBUG: Player %d hand after remove: %d cards remaining" % [current_player, hand.cards.size()])
 			if hand.is_empty():
 				game_state.winner = current_player
 				game_over = true
@@ -247,49 +496,62 @@ func _on_turn_timer_timeout():
 			game_state.mark_player_passed()
 			print("Player %d passes" % current_player)
 
-			# Check if all others passed (reset round)
+			# Check if all others have passed
 			if game_state.all_others_passed():
-				game_state.reset_round()
-				# Clear table display when round resets
-				for child in table_display.get_children():
-					child.queue_free()
+				print("All other players passed! Resetting round...")
+				_reset_round_and_set_current_player(last_player_to_play)
 				print("Round reset!")
+				round_was_reset = true
 
-	# Refresh hand display
-	_refresh_hand_display()
+	# Refresh hand display (deferred to let animation start first)
+	_refresh_hand_display.call_deferred()
 
-	# Move to next player
-	game_state.next_player()
+	# Move to next player only if round wasn't reset
+	# (If round was reset, current_player is already set to the round winner)
+	if not round_was_reset:
+		game_state.next_player()
+
+# ============================================================================
+# ROUND MANAGEMENT
+# ============================================================================
+
+func _reset_round_and_set_current_player(player: int) -> void:
+	"""Reset the round and set the current player to the one who won it"""
+	game_state.reset_round()
+	game_state.current_player = player
+	# Clear table display when round resets
+	for child in table_display.get_children():
+		child.queue_free()
 
 # ============================================================================
 # ANIMATIONS & DISPLAY UPDATES
 # ============================================================================
 
 func _animate_played_cards(player_idx: int, played_cards: Array):
-	"""Animate cards from player hand to center table (runs in parallel)"""
-	var tweens = []
+	"""Animate cards from player hand to center table (one at a time)"""
 
 	for card in played_cards:
 		# Find the card visual from player's hand
 		for card_visual in card_visuals[player_idx]:
 			# Check if this visual still exists and has the matching card
 			if is_instance_valid(card_visual) and card_visual.card == card:
-				# Create tween animation (don't await yet)
+				# Flip CPU player cards face-up before animating
+				if player_idx != 0 and card_visual.show_card_back:
+					card_visual.set_card(card)
+
+				# Reset selection (move back to original position before animating)
+				card_visual.position = card_visual.original_position
+
+				# Animate to table using global coordinates
 				var tween = create_tween()
 				tween.set_trans(Tween.TRANS_QUAD)
 				tween.set_ease(Tween.EASE_IN_OUT)
-				tween.tween_property(card_visual, "position", Vector2(0, 0), Constants.CARD_ANIMATION_DURATION)
-				tweens.append(tween)
-				break
+				tween.tween_property(card_visual, "global_position", table_display.global_position, Constants.CARD_ANIMATION_DURATION)
 
-	# Wait for all animations to complete
-	for tween in tweens:
-		await tween.finished
+				# Wait for this card's animation to complete before moving to the next
+				await tween.finished
 
-	# Clean up animated cards
-	for card in played_cards:
-		for card_visual in card_visuals[player_idx]:
-			if is_instance_valid(card_visual) and card_visual.card == card:
+				# Clean up this card
 				card_visual.queue_free()
 				card_visuals[player_idx].erase(card_visual)
 				break
@@ -300,18 +562,21 @@ func _update_table_display():
 	for child in table_display.get_children():
 		child.queue_free()
 
-	# Display new cards
+	# Display new cards stacked on top of each other
 	var table_combo = game_state.get_table_combo()
 	if table_combo.is_empty():
 		return
 
-	var x_offset = Constants.TABLE_CARD_START_X
+	var card_index = 0
 	for card in table_combo:
 		var card_visual = card_scene.instantiate()
 		card_visual.set_card(card)
-		card_visual.position = Vector2(x_offset, 0)
+		# Stack cards: each card offset slightly to the right and down
+		var x_offset = card_index * 15.0
+		var y_offset = card_index * 5.0
+		card_visual.position = Vector2(x_offset, y_offset)
 		table_display.add_child(card_visual)
-		x_offset += Constants.TABLE_CARD_SPACING
+		card_index += 1
 
 func _refresh_hand_display():
 	"""Refresh all hand displays after cards are removed"""
@@ -347,14 +612,52 @@ func _refresh_hand_display():
 						y_offset = -card_spacing * (hand.cards.size() - 1) / 2 + card_spacing * card_count
 
 				card_visual.position = Vector2(x_offset, y_offset)
+				card_visual.original_position = Vector2(x_offset, y_offset)
 				card_count += 1
 
 # ============================================================================
 # VICTORY & RESET
 # ============================================================================
 
+func _print_game_over_summary():
+	"""Print a nice game over summary to the console"""
+	print("\n" + "=".repeat(80))
+	print("GAME OVER!")
+	print("=".repeat(80) + "\n")
+
+	if game_state.winner != -1:
+		# Prominent winner announcement
+		print("*".repeat(80))
+		print("*" + " ".repeat(78) + "*")
+		var winner_text = "🎉 WINNER: Player %d! 🎉" % game_state.winner
+		var padding = (78 - winner_text.length()) / 2
+		var centered = " ".repeat(padding) + winner_text + " ".repeat(78 - padding - winner_text.length())
+		print("*" + centered + "*")
+		print("*" + " ".repeat(78) + "*")
+		print("*".repeat(80) + "\n")
+
+		# Final hand states
+		var players = game_manager.get_players()
+		print("Final hand states:")
+		for i in range(4):
+			var status = "OUT OF CARDS (WINNER)" if i == game_state.winner else "%d cards remaining" % players[i].get_card_count()
+			print("  Player %d: %s" % [i, status])
+			if not players[i].is_empty():
+				print("    Remaining: %s" % players[i]._to_string())
+
+		# Final confirmation
+		print("\n" + "-".repeat(80))
+		print("🏆 Player %d wins the game! 🏆" % game_state.winner)
+		print("-".repeat(80) + "\n")
+	else:
+		print("No winner determined!")
+		print("\n" + "=".repeat(80) + "\n")
+
 func _show_victory_overlay():
 	"""Show victory screen overlay with padding and bounds checking"""
+	# Print game over summary
+	_print_game_over_summary()
+
 	# Create a VBoxContainer to hold both elements
 	var vbox = VBoxContainer.new()
 	vbox.layout_mode = 2
@@ -420,7 +723,7 @@ func _on_reset_pressed():
 	display_hands()
 
 	# Show start button again
-	$VBoxContainer/HBoxContainer/StartButton.visible = true
+	$StartButton.visible = true
 
 	# Remove victory overlay
 	if victory_overlay:

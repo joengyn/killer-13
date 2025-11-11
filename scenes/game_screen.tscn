@@ -1,36 +1,24 @@
 [gd_scene load_steps=2 format=3 uid="uid://dlsydybiw01j"]
 
-[ext_resource type="Script" path="res://scripts/ui/game_screen.gd" id="1_d3c21"]
+[ext_resource type="Script" uid="uid://c7g0tjxo63s5u" path="res://scripts/ui/game_screen.gd" id="1_d3c21"]
 
 [node name="GameScreen" type="Control"]
 layout_mode = 3
-anchors_left = 0.0
-anchors_top = 0.0
-anchors_right = 1.0
-anchors_bottom = 1.0
+anchors_preset = 0
 script = ExtResource("1_d3c21")
 
 [node name="ColorRect" type="ColorRect" parent="."]
 layout_mode = 1
-anchors_left = 0.0
-anchors_top = 0.0
-anchors_right = 1.0
-anchors_bottom = 1.0
+anchors_preset = 8
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+grow_horizontal = 2
+grow_vertical = 2
 color = Color(0.14118, 0.14118, 0.14118, 1)
 
-[node name="VBoxContainer" type="VBoxContainer" parent="."]
-layout_mode = 2
-size_flags_horizontal = 3
-size_flags_vertical = 3
-alignment = 1
-
-[node name="HBoxContainer" type="HBoxContainer" parent="VBoxContainer"]
-layout_mode = 2
-size_flags_horizontal = 4
-size_flags_vertical = 4
-alignment = 1
-
-[node name="StartButton" type="Button" parent="VBoxContainer/HBoxContainer"]
-layout_mode = 2
+[node name="StartButton" type="Button" parent="."]
 custom_minimum_size = Vector2(200, 80)
+layout_mode = 0
 text = "Start Game"

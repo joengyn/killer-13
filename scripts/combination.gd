@@ -128,19 +128,25 @@ static func contains_three_of_spades(cards: Array) -> bool:
 	return false
 
 ## Get the "strength" of a combination for comparison purposes
-## Returns the rank of the highest or representative card
+## Returns a value that combines rank (primary) and suit (secondary for tiebreaking)
 static func get_strength(cards: Array) -> int:
 	if cards.is_empty():
 		return -1
 
 	var sorted_cards = cards.duplicate()
 	(sorted_cards as Array[Card]).sort_custom(func(a: Card, b: Card) -> bool:
-		return a.rank < b.rank
+		# Sort by rank first, then by suit for same rank
+		if a.rank != b.rank:
+			return a.rank < b.rank
+		return a.suit < b.suit
 	)
 
-	# For straights, use the high card
-	# For pairs/triples/quads, use the rank value
-	return (sorted_cards[-1] as Card).rank
+	# Get the highest card
+	var highest_card = sorted_cards[-1] as Card
+
+	# Return composite strength: rank * 10 + suit
+	# This ensures rank is primary, suit is tiebreaker
+	return highest_card.rank * 10 + highest_card.suit
 
 ## Check if one combination beats another
 ## Returns true if combo1 beats combo2 according to game rules

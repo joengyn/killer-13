@@ -13,6 +13,7 @@ var game_over: bool = false
 var winner: int = -1
 var active_players: Array[bool] = []           # Players still in the game (have cards)
 var consecutive_passes: int = 0                # Passes in a row (resets when someone plays)
+var is_first_turn_of_game: bool = true         # Only true at the very start of the game
 
 ## Initialize game state for the specified number of players
 func _init(num: int = 4) -> void:

@@ -25,7 +25,7 @@ const PLAYER_3_X_OFFSET = 80          # Right center player (calculated from rig
 # ============================================================================
 
 const CARD_SPACING_NORMAL = 12.0      # Pixels between cards for players 1, 2, 3
-const CARD_SPACING_PLAYER_0 = 28.0    # Wider spacing for player 0 (bottom) for readability
+const CARD_SPACING_PLAYER_0 = 60.0    # Wider spacing for player 0 (bottom) for readability
 
 # ============================================================================
 # UI LAYOUT - Table Display

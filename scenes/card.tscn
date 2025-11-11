@@ -1,6 +1,9 @@
-[gd_scene load_steps=2 format=3 uid="uid://c3kf4xafj2n8j"]
+[gd_scene load_steps=3 format=3 uid="uid://c3kf4xafj2n8j"]
 
 [ext_resource type="Script" path="res://scripts/card_visual.gd" id="1_15jvd"]
+
+[sub_resource type="RectangleShape2D" id="1_0"]
+size = Vector2(286, 446)
 
 [node name="Card" type="Node2D"]
 script = ExtResource("1_15jvd")
@@ -8,3 +11,10 @@ script = ExtResource("1_15jvd")
 [node name="Sprite2D" type="Sprite2D" parent="."]
 position = Vector2(0, 0)
 scale = Vector2(2.0, 2.0)
+centered = true
+
+[node name="ClickArea" type="Area2D" parent="."]
+input_pickable = true
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="ClickArea"]
+shape = SubResource("1_0")
