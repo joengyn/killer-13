@@ -1,6 +1,15 @@
 extends Node2D
 ## PlayZone - Manages cards that have been played/placed down
 
+## Emitted when an atk card is clicked to return to hand
+signal atk_card_clicked(card_visual: Node)
+
+## Emitted when an atk card is dragged out of bounds to return to hand
+signal atk_card_dragged_out(card_visual: Node)
+
+## Emitted when an atk card drag starts
+signal atk_card_drag_started(card_visual: Node)
+
 var CARD_WIDTH: float:
 	get: return Constants.CARD_WIDTH
 var CARD_HEIGHT: float:
@@ -51,6 +60,9 @@ func add_atk_card(card: Node) -> void:
 		if card_interaction.has_method("update_base_position"):
 			card_interaction.update_base_position()
 
+		# Connect to the card's interaction signals to detect clicks/drags
+		_connect_atk_card_signals(card)
+
 	_atk_cards.append(card)
 	card.set_shadow_visible(true)
 	card.z_index = ATK_Z_INDEX
@@ -63,6 +75,9 @@ func remove_atk_card(card: Node, new_parent: Node) -> void:
 	if _atk_cards.has(card):
 		_atk_cards.erase(card)
 
+		# Disconnect card signals to prevent memory leaks
+		_disconnect_atk_card_signals(card)
+
 		# Reparent card back to original parent
 		var old_global_pos = card.global_position
 		remove_child(card)
@@ -70,6 +85,62 @@ func remove_atk_card(card: Node, new_parent: Node) -> void:
 		card.global_position = old_global_pos
 
 		_arrange_cards()
+
+
+func _connect_atk_card_signals(card: Node):
+	"""Connect signals from atk card interactions"""
+	var interaction = card.get_node_or_null("Interaction")
+	if interaction:
+		# Disconnect first to avoid duplicate connections
+		if interaction.card_clicked.is_connected(_on_atk_card_clicked):
+			interaction.card_clicked.disconnect(_on_atk_card_clicked)
+		if interaction.drag_ended.is_connected(_on_atk_card_drag_ended):
+			interaction.drag_ended.disconnect(_on_atk_card_drag_ended)
+		if interaction.drag_started.is_connected(_on_atk_card_drag_started):
+			interaction.drag_started.disconnect(_on_atk_card_drag_started)
+
+		# Connect to PlayZone's handlers
+		interaction.card_clicked.connect(_on_atk_card_clicked)
+		interaction.drag_ended.connect(_on_atk_card_drag_ended)
+		interaction.drag_started.connect(_on_atk_card_drag_started)
+
+
+func _disconnect_atk_card_signals(card: Node):
+	"""Disconnect signals from atk card interactions"""
+	var interaction = card.get_node_or_null("Interaction")
+	if interaction:
+		if interaction.card_clicked.is_connected(_on_atk_card_clicked):
+			interaction.card_clicked.disconnect(_on_atk_card_clicked)
+		if interaction.drag_ended.is_connected(_on_atk_card_drag_ended):
+			interaction.drag_ended.disconnect(_on_atk_card_drag_ended)
+		if interaction.drag_started.is_connected(_on_atk_card_drag_started):
+			interaction.drag_started.disconnect(_on_atk_card_drag_started)
+
+
+func _on_atk_card_clicked(card: Node):
+	"""Handle when an atk card is clicked - return it to the hand"""
+	# Emit signal to notify GameScreen that atk card was clicked
+	atk_card_clicked.emit(card)
+
+
+func _on_atk_card_drag_started(card: Node):
+	"""Handle when an atk card drag starts"""
+	# Emit signal to notify GameScreen
+	atk_card_drag_started.emit(card)
+
+
+func _on_atk_card_drag_ended(card: Node):
+	"""Handle when an atk card drag ends - check if it's outside play zone bounds"""
+	# Check if the card is outside the play zone bounds
+	var card_local_pos = card.global_position - global_position
+	var play_zone_bounds = _get_bounds_rect()
+
+	if not play_zone_bounds.has_point(card_local_pos):
+		# Card was dragged outside play zone bounds - return to hand
+		atk_card_dragged_out.emit(card)
+	else:
+		# Card is still within play zone - could handle other logic here if needed
+		pass
 
 
 func _arrange_cards() -> void:

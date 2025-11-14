@@ -1,3 +1,4 @@
+@tool
 extends Node
 ## CardInteraction - Manages player input, hover effects, and drag-and-drop for card visuals
 ##
@@ -136,7 +137,8 @@ func _on_click_area_input(_viewport: Node, event: InputEvent, _shape_idx: int):
 
 		if event.pressed:
 			_mouse_pressed = true
-			_mouse_press_position = event.position
+			# Convert screen position to global position to account for any camera transformations
+			_mouse_press_position = get_viewport().get_canvas_transform().affine_inverse() * get_viewport().get_mouse_position()
 		else:
 			# Mouse released - check if this was a click or drag
 			if _mouse_pressed and not _is_being_dragged and not _click_processed_this_frame:
@@ -151,6 +153,16 @@ func _on_click_area_input(_viewport: Node, event: InputEvent, _shape_idx: int):
 				_click_processed_this_frame = true
 				_last_clicked_card = card_visual
 				_last_clicked_frame = current_frame
+
+				# Editor mode: log click to console
+				if Engine.is_editor_hint():
+					var card_name = ""
+					if card_visual.has_method("get_card"):
+						var card_data = card_visual.get_card()
+						if card_data:
+							card_name = card_data.to_string()
+					print("[Editor Preview] Card clicked: ", card_name if card_name else "Unknown", " - Would move to play zone")
+
 				card_clicked.emit(card_visual)
 			_mouse_pressed = false
 		get_tree().root.set_input_as_handled()
@@ -160,12 +172,15 @@ func _unhandled_input(event: InputEvent):
 	if event is InputEventMouseMotion:
 		# Check if mouse is being dragged from a press
 		if _mouse_pressed and not _is_being_dragged and is_player_card:
-			var drag_distance = event.position.distance_to(_mouse_press_position)
+			var current_global_mouse = get_viewport().get_canvas_transform().affine_inverse() * get_viewport().get_mouse_position()
+			var drag_distance = current_global_mouse.distance_to(_mouse_press_position)
 			if drag_distance > 5.0:  # Threshold to start drag (5 pixels)
 				_start_drag(_mouse_press_position)
 
 		if _is_being_dragged:
-			card_visual.global_position = event.position + _drag_offset
+			# Use global mouse position to maintain proper positioning during drag
+			var global_mouse_pos = get_viewport().get_canvas_transform().affine_inverse() * get_viewport().get_mouse_position()
+			card_visual.global_position = global_mouse_pos + _drag_offset
 			get_tree().root.set_input_as_handled()
 		elif is_player_card and not _is_being_dragged:
 			# Enable hover effects for all player cards (both hand and play zone)
@@ -177,7 +192,8 @@ func _unhandled_input(event: InputEvent):
 				_hovered_card_this_frame = null
 
 			# Check if this card is under the mouse
-			var mouse_pos = get_viewport().get_mouse_position()
+			# Convert screen position to global position to account for any camera transformations
+			var mouse_pos = get_viewport().get_canvas_transform().affine_inverse() * get_viewport().get_mouse_position()
 			# Use base card size (56x80) and multiply by card's current scale
 			var base_card_size = Vector2(Constants.CARD_BASE_WIDTH, Constants.CARD_BASE_HEIGHT)
 			var scaled_card_size = base_card_size * card_visual.scale
@@ -245,6 +261,16 @@ func _start_drag(mouse_pos: Vector2) -> void:
 	var card_visual_script = card_visual as Node2D
 	if card_visual_script:
 		card_visual_script.set_shadow_visible(true)
+
+	# Editor mode: log drag start
+	if Engine.is_editor_hint():
+		var card_name = ""
+		if card_visual.has_method("get_card"):
+			var card_data = card_visual.get_card()
+			if card_data:
+				card_name = card_data.to_string()
+		print("[Editor Preview] Drag started: ", card_name if card_name else "Unknown")
+
 	drag_started.emit(card_visual)
 
 
@@ -256,6 +282,16 @@ func _end_drag() -> void:
 	_drag_offset = Vector2.ZERO  # Clear drag offset to prevent further movement
 	# Don't reset z_index here - let the parent (PlayerHand/PlayZone) manage it
 	# when the card is repositioned via _update_z_indices() or similar
+
+	# Editor mode: log drag end
+	if Engine.is_editor_hint():
+		var card_name = ""
+		if card_visual.has_method("get_card"):
+			var card_data = card_visual.get_card()
+			if card_data:
+				card_name = card_data.to_string()
+		print("[Editor Preview] Drag ended: ", card_name if card_name else "Unknown", " - Would evaluate drop zone")
+
 	drag_ended.emit(card_visual)
 
 
@@ -397,7 +433,8 @@ func _is_in_player_hand() -> bool:
 ## Prevents lower cards from stealing hover/click when overlapping
 ## @return: True if this card has the highest z_index of all cards under cursor
 func _is_topmost_by_z_index() -> bool:
-	var mouse_pos = get_viewport().get_mouse_position()
+	# Convert screen position to global position to account for any camera transformations
+	var mouse_pos = get_viewport().get_canvas_transform().affine_inverse() * get_viewport().get_mouse_position()
 	var cards_under_mouse: Array[Node] = []
 
 	var game_screen = _find_game_screen()
@@ -435,7 +472,7 @@ func _is_topmost_by_z_index() -> bool:
 
 ## Check if a global screen point is within a card's bounding rectangle
 ## @param card: The card node to check
-## @param point: Global screen position to test
+## @param point: Global screen position to test (should be in global/world coordinates)
 ## @return: True if point is inside the card's bounds
 func _is_point_in_card(card: Node, point: Vector2) -> bool:
 	var base_card_size = Vector2(Constants.CARD_BASE_WIDTH, Constants.CARD_BASE_HEIGHT)

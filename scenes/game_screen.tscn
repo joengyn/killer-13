@@ -38,9 +38,9 @@ text = "Start"
 visible = false
 layout_mode = 0
 offset_left = 860.0
-offset_top = 800.0
+offset_top = 756.0
 offset_right = 1060.0
-offset_bottom = 850.0
+offset_bottom = 806.0
 theme = ExtResource("8_theme")
 theme_type_variation = &"LabelLarge"
 text = "PASSED"
@@ -88,30 +88,31 @@ vertical_alignment = 1
 
 [node name="PlayButton" type="Button" parent="CanvasLayer/UIContainer"]
 layout_mode = 0
-offset_left = 800.0
-offset_top = 760.0
-offset_right = 950.0
-offset_bottom = 838.0
+offset_left = 493.0
+offset_top = 695.0
+offset_right = 643.0
+offset_bottom = 773.0
 theme = ExtResource("8_theme")
 text = "Play"
 
 [node name="PassButton" type="Button" parent="CanvasLayer/UIContainer"]
 layout_mode = 0
-offset_left = 1020.0
-offset_top = 760.0
-offset_right = 1175.0
-offset_bottom = 838.0
+offset_left = 1275.0
+offset_top = 695.0
+offset_right = 1430.0
+offset_bottom = 773.0
 theme = ExtResource("8_theme")
 text = "Pass"
 
 [node name="RoundTracker" parent="CanvasLayer/UIContainer" instance=ExtResource("7_round_tracker")]
-layout_mode = 0
+layout_mode = 1
+anchors_preset = 5
 anchor_left = 0.5
 anchor_right = 0.5
 offset_left = -181.5
-offset_top = 276.0
+offset_top = 209.0
 offset_right = 181.5
-offset_bottom = 360.0
+offset_bottom = 293.0
 grow_horizontal = 2
 
 [node name="Deck" parent="." instance=ExtResource("3_3uriw")]

@@ -44,6 +44,11 @@ func set_card(new_card: Card) -> void:
 	if is_node_ready() and inner_sprite:
 		_load_sprite()
 
+## Get the card data this visual represents
+## @return: The Card object (rank + suit) being displayed
+func get_card() -> Card:
+	return card
+
 ## Toggle between showing the card's face or back
 ## @param back: If true, shows card back; if false, shows card face
 func set_show_back(back: bool) -> void:
@@ -131,8 +136,9 @@ func _update_shadow_position() -> void:
 		return
 
 	var screen_center = get_viewport_rect().size / 2.0
-	var card_global_pos = global_position
-	var distance_from_center = card_global_pos.x - screen_center.x
+	# Convert card's global position to screen space to account for camera transforms
+	var screen_pos = get_canvas_transform() * global_position
+	var distance_from_center = screen_pos.x - screen_center.x
 
 	# Calculate horizontal offset: shifts shadow away from center as card moves away
 	# When card is left of center (distance < 0), shadow shifts left (negative)
