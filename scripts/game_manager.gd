@@ -1,39 +1,58 @@
 extends Node
-## GameManager - Manages game state and UI coordination
+## GameManager - Central game coordinator singleton (autoload)
 ##
-## This singleton autoload manages the complete game state, including deck management,
-## player hand creation, and game initialization for 4-player Tiến Lên gameplay.
+## This singleton manages the complete Tiến Lên game state, including:
+## - Deck creation, shuffling, and dealing
+## - Player hand management (4 players)
+## - Turn execution (both human player and AI)
+## - Game rule validation (valid plays, first turn 3♠ requirement, etc.)
+## - Round progression and win detection
+## - Visual card state tracking (hand, attack zone, set zone)
+##
+## Emits signals to notify GameScreen of game events for UI updates.
 
-signal game_started  # Emitted when game is ready to begin
-signal round_started # Emitted when a new round of play begins
-signal turn_changed(player_index: int)  # Current player changed
-signal player_played(player_index: int, cards: Array, is_set_card: bool)  # Cards were played (is_set_card = true if first play)
-signal player_passed(player_index: int)  # Player passed
-signal game_ended(winner: int)  # Someone won
+## Emitted after dealing completes and first player is determined (game ready to start)
+signal game_started
+## Emitted when a new round begins (all players passed except one, table clears)
+signal round_started
+## Emitted when turn advances to a new player
+signal turn_changed(player_index: int)
+## Emitted when any player plays cards (is_set_card = true if first play of round)
+signal player_played(player_index: int, cards: Array, is_set_card: bool)
+## Emitted when a player passes their turn
+signal player_passed(player_index: int)
+## Emitted when game ends (someone ran out of cards)
+signal game_ended(winner: int)
 
+## The deck of 52 cards
 var deck: Deck
+## Array of 4 Hand objects (player 0 = human, players 1-3 = CPU)
 var players: Array[Hand] = []
+## GameState object tracking turns, passes, and table state
 var game_state: GameState
-var current_game_started = false
+## True if game has been set up (deck dealt, hands created)
+var current_game_started: bool = false
 
-# Game flow state
-var is_game_running: bool = false
-var game_won: bool = false
-var winner: int = -1
-var first_turn_of_game: bool = true  # First turn (3♠ required)
+## Game flow state flags
+var is_game_running: bool = false  ## True if game is actively playing (between start and end)
+var game_won: bool = false  ## True if someone has won
+var winner: int = -1  ## Index of winning player (-1 if no winner yet)
+var first_turn_of_game: bool = true  ## True only on first turn (3♠ required)
 
-# Visual card state tracking (player 0 only for now)
-var player_visual_cards_in_hand: Array[Node] = []  # Visual cards currently in player's hand
-var player_visual_cards_in_atk_zone: Array[Node] = []  # Visual cards in play zone (being attempted to play)
-var player_visual_cards_in_set_zone: Array[Node] = []  # Visual cards committed on table (set cards)
+## Visual card state tracking for player 0 (human player)
+## Tracks which visual card nodes are in which zone (source of truth for card locations)
+var player_visual_cards_in_hand: Array[Node] = []  ## Cards in PlayerHand
+var player_visual_cards_in_atk_zone: Array[Node] = []  ## Cards in PlayZone attack area (being played)
+var player_visual_cards_in_set_zone: Array[Node] = []  ## Cards committed on table (set)
 
 func _ready():
 	# GameManager initialization is handled by GameScreen.animate_deal_sequence()
 	# No auto-setup here to avoid duplicate initialization
 	pass
 
-## Initialize deck, deal cards to 4 players
-func setup_game():
+## Initialize a new game: create deck, shuffle, deal 13 cards to 4 players
+## Does NOT start turn execution - call start_game() after setup_game()
+func setup_game() -> void:
 	deck = Deck.new()
 	deck.shuffle()
 
@@ -51,8 +70,9 @@ func setup_game():
 
 	print("Game started! 4 players, 13 cards each.")
 
-## Begin the actual game after cards are dealt
-func start_game():
+## Start the game after setup_game() completes
+## Finds starting player (who has 3♠), emits signals, begins turn execution
+func start_game() -> void:
 	current_game_started = true
 	is_game_running = true
 	game_won = false
@@ -71,12 +91,11 @@ func start_game():
 		await get_tree().create_timer(0.5).timeout
 		_execute_ai_turn()
 
-## Player submits cards to play - called from UI when Play button pressed
+## Execute human player's (player 0) play attempt
+## Validates the play against game rules, updates game state if valid
+## @param cards: Array of Card objects player wants to play
+## @return: True if play was valid and executed, false if invalid
 func execute_player_play(cards: Array[Card]) -> bool:
-	"""
-	Player attempts to play cards.
-	Returns: true if play was valid and executed, false if invalid
-	"""
 	if not is_game_running or game_state.current_player != 0:
 		return false
 
@@ -101,9 +120,9 @@ func execute_player_play(cards: Array[Card]) -> bool:
 		return false
 
 
-## Player passes - called from UI when Pass button pressed
+## Execute human player's (player 0) pass action
+## Marks player as passed, checks for round end, advances turn
 func pass_turn() -> void:
-	"""Current player passes their turn"""
 	if not is_game_running or game_state.current_player != 0:
 		return
 
@@ -146,9 +165,10 @@ func _handle_round_reset() -> void:
 		_execute_ai_turn()
 
 
-## Check if player 0 has passed in the current round
+## Check if human player (player 0) has passed in the current round
+## Used to disable Play/Pass buttons when player has already passed
+## @return: True if player 0 passed this round
 func has_player_passed() -> bool:
-	"""Returns true if player 0 passed in the current round"""
 	return game_state.passed_players[0] if game_state else false
 
 
@@ -316,26 +336,32 @@ func get_current_state() -> GameState:
 	return game_state
 
 
-## ===== VISUAL CARD STATE MANAGEMENT =====
+## ============================================================================
+## VISUAL CARD STATE MANAGEMENT (Player 0 only)
+## ============================================================================
+## These methods track which visual card nodes are in which zone
+## GameManager is the source of truth for card locations
 
-## Get all visual cards currently in player's hand
+## Get all visual card nodes currently in player's hand
+## @return: Array of Node (CardVisual) in hand zone
 func get_player_hand_cards() -> Array[Node]:
 	return player_visual_cards_in_hand.duplicate()
 
 
-## Get all visual cards in atk zone (being played)
+## Get all visual card nodes in attack zone (cards player is attempting to play)
+## @return: Array of Node (CardVisual) in atk zone
 func get_player_atk_cards() -> Array[Node]:
 	return player_visual_cards_in_atk_zone.duplicate()
 
-
-## Get all visual cards in set zone (committed)
+## Get all visual card nodes in set zone (committed to table)
+## @return: Array of Node (CardVisual) in set zone
 func get_player_set_cards() -> Array[Node]:
 	return player_visual_cards_in_set_zone.duplicate()
 
-
-## Determine where a card currently is
+## Determine which zone a visual card is currently in
+## @param card: The visual card Node to check
+## @return: String: 'hand', 'atk', 'set', or 'unknown'
 func get_card_location(card: Node) -> String:
-	"""Returns: 'hand', 'atk', 'set', or 'unknown'"""
 	if card in player_visual_cards_in_hand:
 		return "hand"
 	elif card in player_visual_cards_in_atk_zone:
@@ -346,9 +372,10 @@ func get_card_location(card: Node) -> String:
 		return "unknown"
 
 
-## Move a card from hand to atk zone
+## Move a visual card from hand zone to attack zone
+## @param card: The visual card Node to move
+## @return: True if successful, false if card wasn't in hand
 func move_card_to_atk_zone(card: Node) -> bool:
-	"""Move card from hand to atk zone. Returns true if successful."""
 	if card not in player_visual_cards_in_hand:
 		push_warning("Card not in hand, cannot move to atk zone")
 		return false
@@ -358,9 +385,10 @@ func move_card_to_atk_zone(card: Node) -> bool:
 	return true
 
 
-## Move a card from atk zone back to hand
+## Move a visual card from attack zone back to hand zone
+## @param card: The visual card Node to move
+## @return: True if successful, false if card wasn't in atk zone
 func move_card_to_hand(card: Node) -> bool:
-	"""Move card from atk zone back to hand. Returns true if successful."""
 	if card not in player_visual_cards_in_atk_zone:
 		push_warning("Card not in atk zone, cannot move to hand")
 		return false
@@ -370,24 +398,24 @@ func move_card_to_hand(card: Node) -> bool:
 	return true
 
 
-## Commit atk cards to set zone (called when Play button succeeds)
+## Commit all attack zone cards to set zone (called when Play succeeds)
+## This finalizes the play - cards are now on the table
 func commit_atk_cards_to_set() -> void:
-	"""Move all cards from atk zone to set zone"""
 	for card in player_visual_cards_in_atk_zone:
 		player_visual_cards_in_set_zone.append(card)
 	player_visual_cards_in_atk_zone.clear()
 
 
-## Clear all player visual cards (for new deal/reset)
+## Clear all visual card tracking (called when starting a new game/deal)
 func clear_player_visual_cards() -> void:
-	"""Clear all visual card state - call when dealing new hand"""
 	player_visual_cards_in_hand.clear()
 	player_visual_cards_in_atk_zone.clear()
 	player_visual_cards_in_set_zone.clear()
 
 
-## Register a visual card to the player's hand
+## Register a visual card node as being in player's hand
+## Called during dealing when cards are created
+## @param card: The visual card Node to register
 func add_card_to_player_hand(card: Node) -> void:
-	"""Called when a new card is dealt to player"""
 	if card not in player_visual_cards_in_hand:
 		player_visual_cards_in_hand.append(card)

@@ -1,11 +1,17 @@
 class_name Combination
-## Validates card combinations and determines their type and strength
+## Combination validator and comparator for Tiến Lên card game rules
 ##
-## Handles all valid combination types in Tiến Lên: singles, pairs, triples,
-## straights, and bombs (4-of-a-kind and consecutive pairs). Provides comparison
-## logic to determine if one combination beats another.
+## Core game logic class that validates card combinations, detects their type, and
+## determines which combinations beat others. Handles all Tiến Lên combo types:
+## singles, pairs, triples, straights (3-A only), and bombs (quads, consecutive pairs).
+##
+## Key rules:
+## - Same type combos are compared by strength (highest card wins)
+## - Bombs (quads, consecutive pairs) can beat single/pair 2s
+## - Straights cannot contain 2s
+## - All methods are static - this class has no instance data
 
-## Combination type enumeration
+## Enumeration of all valid combination types in Tiến Lên
 enum Type {
 	INVALID,
 	SINGLE,                # 1 card
@@ -16,8 +22,9 @@ enum Type {
 	CONSECUTIVE_PAIRS      # 3+ consecutive pairs (bomb)
 }
 
-## Detect the type of card combination
-## Returns Type enum value indicating the combination type
+## Analyze an array of cards and detect its combination type
+## @param cards: Array of Card objects to analyze
+## @return: Type enum value (INVALID if not a valid combination)
 static func detect_type(cards: Array) -> Type:
 	if cards.is_empty():
 		return Type.INVALID
@@ -72,8 +79,10 @@ static func detect_type(cards: Array) -> Type:
 
 	return Type.INVALID
 
-## Check if cards form a valid straight (4+ consecutive ranks, no 2s allowed)
-## Accepts pre-sorted cards for efficiency
+## Check if cards form a valid straight (4+ consecutive ranks, no 2s)
+## Straights in Tiến Lên can only use ranks 3-A; 2s are not allowed in straights.
+## @param cards: Pre-sorted array of Card objects (assumed sorted by rank)
+## @return: True if cards form a valid straight
 static func is_straight(cards: Array) -> bool:
 	if cards.size() < 4:
 		return false
@@ -92,9 +101,11 @@ static func is_straight(cards: Array) -> bool:
 
 	return true
 
-## Check if cards form consecutive pairs (bomb type)
-## e.g., 3-3 4-4 5-5 or 3-3 4-4 5-5 6-6 (6+ cards, must be pairs in consecutive ranks)
-## Accepts pre-sorted cards for efficiency
+## Check if cards form consecutive pairs (a bomb combination)
+## Must have 3+ pairs (6+ cards total) with consecutive ranks
+## Example: 3♠3♥ 4♦4♣ 5♠5♥ (three pairs: 3-3, 4-4, 5-5)
+## @param cards: Pre-sorted array of Card objects (assumed sorted by rank)
+## @return: True if cards form valid consecutive pairs
 static func is_consecutive_pairs(cards: Array) -> bool:
 	if cards.size() < 6 or cards.size() % 2 != 0:
 		return false
@@ -116,19 +127,27 @@ static func is_consecutive_pairs(cards: Array) -> bool:
 
 	return true
 
-## Check if a combination is valid (returns true if it's a recognized combination type)
+## Check if an array of cards forms any valid combination
+## @param cards: Array of Card objects to validate
+## @return: True if the combination is valid (not INVALID type)
 static func is_valid(cards: Array) -> bool:
 	return detect_type(cards) != Type.INVALID
 
-## Check if a combination includes the 3 of spades (required for first turn validation)
+## Check if a combination contains the 3 of spades
+## Used for first turn validation (3♠ is required on game's opening play)
+## @param cards: Array of Card objects to check
+## @return: True if 3♠ is present in the combination
 static func contains_three_of_spades(cards: Array) -> bool:
 	for card in cards:
 		if (card as Card).is_three_of_spades():
 			return true
 	return false
 
-## Get the "strength" of a combination for comparison purposes
-## Returns a value that combines rank (primary) and suit (secondary for tiebreaking)
+## Calculate the numeric strength of a combination for comparison
+## Strength is based on the highest card: (rank * 10) + suit
+## This ensures rank is primary factor, suit is tiebreaker
+## @param cards: Array of Card objects
+## @return: Integer strength value (-1 if empty, higher = stronger)
 static func get_strength(cards: Array) -> int:
 	if cards.is_empty():
 		return -1
@@ -148,8 +167,14 @@ static func get_strength(cards: Array) -> int:
 	# This ensures rank is primary, suit is tiebreaker
 	return highest_card.rank * 10 + highest_card.suit
 
-## Check if one combination beats another
-## Returns true if combo1 beats combo2 according to game rules
+## Check if one combination beats another according to Tiến Lên rules
+## Rules:
+## - Same type: Compare strength (higher wins)
+## - Bombs (quad/consecutive pairs) can beat single or pair 2s
+## - Different types otherwise: Cannot beat
+## @param combo1: First combination (attacker)
+## @param combo2: Second combination (defender)
+## @return: True if combo1 beats combo2
 static func beats(combo1: Array, combo2: Array) -> bool:
 	var type1 = detect_type(combo1)
 	var type2 = detect_type(combo2)
@@ -176,7 +201,9 @@ static func beats(combo1: Array, combo2: Array) -> bool:
 
 	return false
 
-# Get a string representation of combo type
+## Convert a combination type enum to a human-readable string
+## @param combo_type: Type enum value
+## @return: String description of the type
 static func type_to_string(combo_type: Type) -> String:
 	match combo_type:
 		Type.SINGLE:
@@ -194,7 +221,9 @@ static func type_to_string(combo_type: Type) -> String:
 		_:
 			return "Invalid"
 
-## Get a string representation of a combination
+## Convert a combination to a space-separated string (e.g., "3♠ 4♠ 5♠")
+## @param cards: Array of Card objects
+## @return: String representation with card symbols
 static func combo_to_string(cards: Array) -> String:
 	var result = ""
 	for i in range(cards.size()):

@@ -1,16 +1,28 @@
 class_name SimpleAI
-## AI decision-making engine for Tiến Lên gameplay
+## AI decision-making engine for CPU players in Tiến Lên
 ##
-## Implements a conservative AI strategy that always plays the lowest valid
-## combination to beat the current table play. Handles all combination types
-## and bombs appropriately.
+## Implements a conservative "play lowest valid combo" strategy for CPU opponents.
+## The AI always attempts to play the weakest possible combination that beats the table,
+## conserving stronger cards for later. On first turn, plays the 3♠ as required.
+##
+## Strategy summary:
+## - First turn: Play 3♠ alone (required by game rules)
+## - Empty table: Play lowest single card (start new round conservatively)
+## - Table has cards: Find lowest valid combo to beat it
+## - Cannot beat normally: Try bombs (quad or consecutive pairs) if table has 2s
+## - Cannot beat at all: Pass
+##
+## All methods are static - this class has no instance state.
 
 ## ============================================================================
 ## MAIN DECISION LOGIC
 ## ============================================================================
 
-## Decide what cards to play based on current game state
-## Returns array of cards to play, or empty array to pass
+## Decide which cards the AI should play based on current game state
+## @param hand: The AI player's current hand
+## @param game_state: Current game state (table combo, turn info, etc.)
+## @param is_first_turn: True if this is the first turn of the entire game (3♠ required)
+## @return: Array of Card objects to play, or empty array to pass
 static func decide_play(hand: Hand, game_state: GameState, is_first_turn: bool) -> Array:
 	# If hand is empty, player can't play
 	if hand.is_empty():
@@ -53,6 +65,11 @@ static func decide_play(hand: Hand, game_state: GameState, is_first_turn: bool) 
 ## ============================================================================
 
 ## Find the lowest valid combination that beats the table combo
+## Delegates to specialized methods based on table combination type
+## @param hand: The AI player's hand
+## @param table_combo: Current cards on the table to beat
+## @param table_type: Type of the table combination
+## @return: Array of cards that beats the table, or empty if cannot beat
 static func find_lowest_beating_combo(hand: Hand, table_combo: Array, table_type: Combination.Type) -> Array:
 	match table_type:
 		Combination.Type.SINGLE:
@@ -75,7 +92,10 @@ static func find_lowest_beating_combo(hand: Hand, table_combo: Array, table_type
 
 	return []
 
-## Find lowest single card that beats the given card
+## Find the weakest single card in hand that beats the table card
+## @param hand: The AI player's hand
+## @param table_card: Single card on the table to beat
+## @return: Array containing one card, or empty if cannot beat
 static func find_lowest_beating_single(hand: Hand, table_card: Card) -> Array:
 	var lowest: Card = null
 	for card in hand.cards:
@@ -87,7 +107,10 @@ static func find_lowest_beating_single(hand: Hand, table_card: Card) -> Array:
 		return [lowest]
 	return []
 
-## Find lowest pair that beats the given pair
+## Find the weakest pair in hand that beats the table pair
+## @param hand: The AI player's hand
+## @param table_combo: Pair on the table to beat
+## @return: Array containing two cards of same rank, or empty if cannot beat
 static func find_lowest_beating_pair(hand: Hand, table_combo: Array) -> Array:
 	var table_rank = (table_combo[0] as Card).rank
 
@@ -99,7 +122,10 @@ static func find_lowest_beating_pair(hand: Hand, table_combo: Array) -> Array:
 
 	return []
 
-## Find lowest triple that beats the given triple
+## Find the weakest triple in hand that beats the table triple
+## @param hand: The AI player's hand
+## @param table_combo: Triple on the table to beat
+## @return: Array containing three cards of same rank, or empty if cannot beat
 static func find_lowest_beating_triple(hand: Hand, table_combo: Array) -> Array:
 	var table_rank = (table_combo[0] as Card).rank
 
@@ -111,7 +137,11 @@ static func find_lowest_beating_triple(hand: Hand, table_combo: Array) -> Array:
 
 	return []
 
-## Find lowest straight that beats the given straight
+## Find the weakest straight in hand that beats the table straight
+## Tries same-length straights first, then longer ones
+## @param hand: The AI player's hand
+## @param table_combo: Straight on the table to beat
+## @return: Array of cards forming a straight, or empty if cannot beat
 static func find_lowest_beating_straight(hand: Hand, table_combo: Array) -> Array:
 	var table_len = table_combo.size()
 	var table_high_rank = (table_combo[-1] as Card).rank
@@ -136,7 +166,11 @@ static func find_lowest_beating_straight(hand: Hand, table_combo: Array) -> Arra
 ## HELPER METHODS
 ## ============================================================================
 
-## Try to build a straight of given length starting from a rank
+## Attempt to build a straight of specified length starting from a given rank
+## @param hand: The AI player's hand
+## @param start_rank: Starting rank for the straight (Card.Rank enum value)
+## @param length: Number of consecutive cards needed
+## @return: Array of cards forming the straight, or empty if cannot build
 static func try_build_straight(hand: Hand, start_rank: int, length: int) -> Array:
 	if start_rank + length > 13:
 		return []  # Can't build straight that long from this rank
@@ -154,7 +188,11 @@ static func try_build_straight(hand: Hand, start_rank: int, length: int) -> Arra
 
 	return straight
 
-## Find a bomb (4 of a kind or consecutive pairs) to beat the table
+## Find a bomb (quad or consecutive pairs) to beat the table
+## Bombs can beat 2s when normal plays cannot
+## @param hand: The AI player's hand
+## @param table_combo: Cards on the table (typically contains a 2)
+## @return: Array forming a bomb combo, or empty if no bomb available
 static func find_lowest_beating_bomb(hand: Hand, table_combo: Array) -> Array:
 	# First, try 4 of a kind
 	for rank in range(0, 13):
@@ -172,7 +210,11 @@ static func find_lowest_beating_bomb(hand: Hand, table_combo: Array) -> Array:
 
 	return []
 
-## Try to build consecutive pairs starting from a rank
+## Attempt to build consecutive pairs starting from a given rank
+## @param hand: The AI player's hand
+## @param start_rank: Starting rank for the consecutive pairs
+## @param num_pairs: Number of consecutive pairs needed (minimum 3)
+## @return: Array of cards forming consecutive pairs, or empty if cannot build
 static func try_build_consecutive_pairs(hand: Hand, start_rank: int, num_pairs: int) -> Array:
 	var pairs: Array = []
 	for i in range(num_pairs):

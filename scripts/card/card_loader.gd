@@ -1,20 +1,27 @@
 extends Node
-## CardLoader - Singleton that loads and manages card sprites from spritesheet
+## CardLoader - Singleton autoload that manages card sprite atlases from spritesheet
+##
+## Loads the card spritesheet on _ready() and creates AtlasTexture regions for all 52 cards
+## plus the card back. Provides lookup methods to retrieve sprites by rank and suit.
+##
+## Spritesheet Layout (kerenel_Cards.png):
+## - Column 0: Special cards (blanks, card backs, jokers)
+## - Columns 1-13: A, 2, 3, 4, 5, 6, 7, 8, 9, 10, J, Q, K
+## - Row 0: Hearts, Row 1: Spades, Row 2: Diamonds, Row 3: Clubs
+## - Rows 4-5: Unused alternate color sets (gold, blue variants)
 
-# Sprite sheet layout:
-# Column 0: Special (blanks, card backs, unused)
-# Columns 1-13: A, 2, 3, 4, 5, 6, 7, 8, 9, 10, J, Q, K
-# Row 0: Hearts, Row 1: Spades, Row 2: Diamonds, Row 3: Clubs
-# Rows 4-5: Unused color sets (gold, blue)
-
-var card_sprites = {}  # Store card atlases by rank+suit
+## Dictionary mapping "rank_suit" keys to AtlasTexture sprites (e.g., "0_1" = THREE of CLUBS)
+var card_sprites: Dictionary = {}
+## AtlasTexture for the card back (column 0, row 2)
 var card_back_sprite: AtlasTexture
+## The loaded spritesheet texture
 var texture: Texture2D
 
-func _ready():
+func _ready() -> void:
 	load_sprites()
 
-func load_sprites():
+## Load all card sprites from the spritesheet and populate the card_sprites dictionary
+func load_sprites() -> void:
 	texture = preload("res://assets/kerenel_Cards.png")
 	if not texture:
 		push_error("CardLoader: Failed to load spritesheet")
@@ -73,8 +80,11 @@ func load_sprites():
 	card_back_sprite = back_atlas
 
 
+## Get the sprite atlas for a specific card
+## @param rank: Card.Rank enum value (0-12, where THREE=0, TWO=12)
+## @param suit: Card.Suit enum value (0-3, where SPADES=0, HEARTS=3)
+## @return: AtlasTexture for the requested card, or null if not found
 func get_card_sprite(rank: int, suit: int) -> AtlasTexture:
-	"""Get sprite for a specific card by rank and suit enum values"""
 	var key = "%d_%d" % [rank, suit]
 	if key in card_sprites:
 		return card_sprites[key]
@@ -82,6 +92,7 @@ func get_card_sprite(rank: int, suit: int) -> AtlasTexture:
 		push_error("Card sprite not found: rank=%d, suit=%d" % [rank, suit])
 		return null
 
+## Get the card back sprite atlas
+## @return: AtlasTexture for the red card back design
 func get_card_back() -> AtlasTexture:
-	"""Get sprite for card back"""
 	return card_back_sprite

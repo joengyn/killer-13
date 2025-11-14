@@ -1,49 +1,65 @@
 extends Node
-## Handles input and drag-and-drop for cards
+## CardInteraction - Manages player input, hover effects, and drag-and-drop for card visuals
+##
+## Handles click detection, drag operations, hover animations (scale + position + shader rotation),
+## and shadow visibility. Uses static guards to prevent race conditions when multiple cards overlap.
+## Only active when is_player_card is true.
 
+## Emitted when the user starts dragging this card
 signal drag_started(card_visual: Node)
+## Emitted when the user stops dragging this card
 signal drag_ended(card_visual: Node)
+## Emitted when the user clicks this card without dragging
 signal card_clicked(card_visual: Node)
 
-# Constants for card interaction
-const CARD_SIZE: Vector2 = Vector2(56.0, 80.0)
-const SHADER_MAX_ROTATION: float = 15.0  # Max rotation in degrees
-const SHADER_EASING_DURATION: float = 0.2
-const HOVER_SCALE_MULTIPLIER: float = 1.1
-const HOVER_VERTICAL_OFFSET: float = -80.0  # Move upward by 80 pixels
-const SCALE_ANIMATION_DURATION: float = 0.2
-const POSITION_ANIMATION_DURATION: float = 0.2
-const RESET_ANIMATION_DURATION: float = 0.3
+## Constants for card interaction and animation timing
+const CARD_SIZE: Vector2 = Vector2(56.0, 80.0)  ## Base card dimensions for hit detection
+const SHADER_MAX_ROTATION: float = 15.0  ## Maximum 3D tilt angle in degrees
+const SHADER_EASING_DURATION: float = 0.2  ## Duration for shader rotation animations
+const HOVER_SCALE_MULTIPLIER: float = 1.1  ## Scale multiplier when hovering (1.1 = 10% larger)
+const HOVER_VERTICAL_OFFSET: float = -80.0  ## Vertical lift when hovering (negative = upward)
+const SCALE_ANIMATION_DURATION: float = 0.2  ## Duration for scale animations
+const POSITION_ANIMATION_DURATION: float = 0.2  ## Duration for position animations
+const RESET_ANIMATION_DURATION: float = 0.3  ## Duration for resetting effects
 
 @onready var card_visual = get_parent()
 @onready var click_area = card_visual.get_node("ClickArea")
 @onready var outer_sprite = card_visual.get_node("OuterSprite")
 
+## If true, this card responds to player input (hover, click, drag)
 var is_player_card: bool = false
+## If true, the card is currently being dragged
 var _is_being_dragged: bool = false
-var _drag_offset: Vector2 = Vector2.ZERO  # Offset from click point to card center; allows card to follow cursor from click position
+## Offset from cursor to card center during drag (maintains relative grab position)
+var _drag_offset: Vector2 = Vector2.ZERO
+## If true, mouse is currently over this card
 var _is_mouse_over: bool = false
-var _mouse_pressed: bool = false  # Track if mouse was pressed on this card
-var _mouse_press_position: Vector2 = Vector2.ZERO  # Track where mouse was pressed
+## If true, mouse was pressed down on this card (used to distinguish click vs drag)
+var _mouse_pressed: bool = false
+## Position where mouse was initially pressed (used to detect drag threshold)
+var _mouse_press_position: Vector2 = Vector2.ZERO
 
+## Tween for shader rotation animations
 var _reset_tween: Tween
+## Original scale before hover effects applied
 var _base_scale: Vector2 = Vector2.ONE
+## Tween for scale animations
 var _scale_tween: Tween
+## Tween for position animations
 var _position_tween: Tween
-var _base_y: float = 0.0  # Base vertical position (updated with hand rearrangement)
+## Base Y position when in hand (updated when hand rearranges)
+var _base_y: float = 0.0
 
-# Static guard to prevent multiple cards from processing the same click in one frame
+## Static guard to prevent multiple cards from processing the same click in one frame
 static var _last_click_frame: int = -1
 static var _click_processed_this_frame: bool = false
 
-# Guard to prevent immediate re-click of the same card after it moves
+## Guard to prevent immediate re-click after card moves (prevents toggle spam)
 static var _last_clicked_card: Node = null
 static var _last_clicked_frame: int = -1
-const CLICK_COOLDOWN_FRAMES: int = 10  # Minimum frames between clicks on same card
+const CLICK_COOLDOWN_FRAMES: int = 10  ## Minimum frames between clicks on same card
 
-# Static guard to ensure only ONE card can be hovered per frame
-# Prevents race condition where multiple overlapping cards all think they're topmost
-# Works the same way as the click guard above
+## Static guard to ensure only ONE card is hovered per frame (prevents overlap issues)
 static var _last_hover_frame: int = -1
 static var _hovered_card_this_frame: Node = null
 
@@ -64,13 +80,14 @@ func _ready():
 			card_visual.set_shadow_visible(false)
 
 
+## Update the base Y position reference when the hand is rearranged
+## Called by PlayerHand after repositioning cards
 func update_base_position() -> void:
-	"""Update base Y position when hand is rearranged - call from PlayerHand"""
 	_base_y = card_visual.position.y
 
-
+## Reset all hover effects when card changes location (hand ↔ play zone)
+## Clears hover flags, resets shader rotation, and updates shadow visibility
 func reset_hover_state() -> void:
-	"""Reset all hover effects - call this when card is moved to a new location"""
 	_is_mouse_over = false
 	_reset_shader_rotation()
 	_animate_scale_to(_base_scale)
@@ -83,10 +100,11 @@ func reset_hover_state() -> void:
 	_update_shadow_for_location()
 
 
+## Enable or disable all interaction for this card and reset effects
+## @param enabled: If true, enables interaction; if false, disables and resets all effects
+## NOTE: Prefer direct assignment to is_player_card in most cases.
+## Use this method when you need the full reset behavior (clears hover, drag, animations).
 func set_interactive(enabled: bool) -> void:
-	"""Enable or disable all interaction for this card (hover, drag, etc.)
-	NOTE: Prefer direct assignment to is_player_card in most cases.
-	This method is kept for cases where you need the full reset behavior."""
 	is_player_card = enabled
 	if not enabled:
 		# Reset any active hover/drag state
@@ -214,6 +232,8 @@ func _unhandled_input(event: InputEvent):
 		get_tree().root.set_input_as_handled()
 
 
+## Internal: Start dragging this card
+## @param mouse_pos: Global mouse position where drag was initiated
 func _start_drag(mouse_pos: Vector2) -> void:
 	_is_being_dragged = true
 	_drag_offset = card_visual.global_position - mouse_pos
@@ -228,6 +248,8 @@ func _start_drag(mouse_pos: Vector2) -> void:
 	drag_started.emit(card_visual)
 
 
+## Internal: End drag operation and emit signal
+## Parent (GameScreen) handles actual card placement logic
 func _end_drag() -> void:
 	_is_being_dragged = false
 	_mouse_pressed = false  # Reset mouse state
@@ -237,8 +259,9 @@ func _end_drag() -> void:
 	drag_ended.emit(card_visual)
 
 
+## Update shader rotation to create 3D tilt effect based on mouse position
+## Mouse near edges causes card to tilt away from cursor, creating depth illusion
 func _update_shader_rotation() -> void:
-	"""Update shader rotation based on mouse position over card"""
 	if not outer_sprite or not outer_sprite.material:
 		return
 
@@ -283,8 +306,9 @@ func _update_shader_rotation() -> void:
 	)
 
 
+## Smoothly animate card scale with easing
+## @param target_scale: Target scale vector (e.g., Vector2(1.1, 1.1) for 10% larger)
 func _animate_scale_to(target_scale: Vector2) -> void:
-	"""Smoothly animate card scale to target"""
 	# Kill previous scale tween if it exists
 	if _scale_tween:
 		_scale_tween.kill()
@@ -296,8 +320,9 @@ func _animate_scale_to(target_scale: Vector2) -> void:
 	_scale_tween.tween_property(card_visual, "scale", target_scale, SCALE_ANIMATION_DURATION)
 
 
+## Smoothly animate card's Y position (for hover lift effect)
+## @param target_y: Target Y coordinate in local space
 func _animate_position_y_to(target_y: float) -> void:
-	"""Smoothly animate card's Y position to target"""
 	# Kill previous position tween if it exists
 	if _position_tween:
 		_position_tween.kill()
@@ -316,8 +341,8 @@ func _animate_position_y_to(target_y: float) -> void:
 	)
 
 
+## Smoothly reset shader rotation back to neutral (0, 0) position
 func _reset_shader_rotation() -> void:
-	"""Smoothly reset shader rotation back to 0"""
 	if not outer_sprite or not outer_sprite.material:
 		return
 
@@ -348,8 +373,9 @@ func _reset_shader_rotation() -> void:
 	)
 
 
+## Update shadow visibility based on card location
+## Rule: In hand, shadow only shows on hover. In play zone, shadow always shows.
 func _update_shadow_for_location() -> void:
-	"""Update shadow visibility based on card location - show by default in play zone, hide in hand unless hovering"""
 	if not card_visual.has_method("set_shadow_visible"):
 		return
 
@@ -361,23 +387,25 @@ func _update_shadow_for_location() -> void:
 		card_visual.set_shadow_visible(true)
 
 
+## Check if this card is currently in the player's hand (vs play zone)
+## @return: True if parent is PlayerHand node
 func _is_in_player_hand() -> bool:
-	"""Check if this card is in the player's hand"""
 	var parent = card_visual.get_parent()
 	return parent and parent.name == "PlayerHand"
 
-
+## Check if this card has the highest z_index among all interactive cards under the mouse
+## Prevents lower cards from stealing hover/click when overlapping
+## @return: True if this card has the highest z_index of all cards under cursor
 func _is_topmost_by_z_index() -> bool:
-	"""Check if this card has the highest z_index among ALL interactive cards under the mouse."""
 	var mouse_pos = get_viewport().get_mouse_position()
 	var cards_under_mouse: Array[Node] = []
 
-	var player_ui = _find_player_ui()
-	if not player_ui:
+	var game_screen = _find_game_screen()
+	if not game_screen:
 		return true # Should not happen, but default to true to avoid blocking input
 
-	var player_hand = player_ui.get_node_or_null("PlayerHand")
-	var play_zone = player_ui.get_node_or_null("PlayZone")
+	var player_hand = game_screen.get_node_or_null("PlayerHand")
+	var play_zone = game_screen.get_node_or_null("PlayZone")
 
 	# Collect all interactive cards under the mouse from both hand and zone
 	var potential_cards: Array[Node] = []
@@ -405,33 +433,37 @@ func _is_topmost_by_z_index() -> bool:
 	return topmost_card == card_visual
 
 
+## Check if a global screen point is within a card's bounding rectangle
+## @param card: The card node to check
+## @param point: Global screen position to test
+## @return: True if point is inside the card's bounds
 func _is_point_in_card(card: Node, point: Vector2) -> bool:
-	"""Check if a global point is within the card's bounding rectangle."""
 	var base_card_size = Vector2(Constants.CARD_BASE_WIDTH, Constants.CARD_BASE_HEIGHT)
 	var scaled_card_size = base_card_size * card.scale
 	var card_rect = Rect2(card.global_position - scaled_card_size / 2.0, scaled_card_size)
 	return card_rect.has_point(point)
 
 
-func _find_player_ui() -> Node:
-	"""Find the PlayerUI node in the scene"""
+## Find the GameScreen node by walking up the scene tree
+## @return: The GameScreen node, or null if not found
+func _find_game_screen() -> Node:
 	# Try to find it by walking up the tree
 	var current = card_visual.get_parent()
 	while current:
-		if current.name == "PlayerUI":
+		if current.name == "GameScreen":
 			return current
-		# Check if any sibling is PlayerUI
+		# Check if any sibling is GameScreen
 		var parent = current.get_parent()
 		if parent:
-			var player_ui = parent.get_node_or_null("PlayerUI")
-			if player_ui:
-				return player_ui
+			var game_screen = parent.get_node_or_null("GameScreen")
+			if game_screen:
+				return game_screen
 		current = parent
 	return null
 
 
+## Clean up tweens when node is removed to prevent memory leaks
 func _exit_tree() -> void:
-	"""Clean up tweens when node is removed from tree"""
 	if _reset_tween:
 		_reset_tween.kill()
 	if _scale_tween:

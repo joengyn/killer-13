@@ -1,21 +1,30 @@
 extends Node
-## Constants - Centralized configuration for the Tiến Lên card game
+## Constants - Global configuration values for Tiến Lên card game
+##
+## Centralizes all magic numbers and configuration values for easy tuning.
+## All values are const and accessible throughout the codebase via Constants.VARIABLE_NAME
 
-# ============================================================================
-# CARD DISPLAY CONFIGURATION
-# ============================================================================
+## ============================================================================
+## CARD DISPLAY CONFIGURATION
+## ============================================================================
 
-const CARD_SCALE: float = 4.0         # Visual scale multiplier for cards (base 56x80 pixels)
-const CARD_BASE_WIDTH: float = 56.0   # Base card width in pixels (before scaling)
-const CARD_BASE_HEIGHT: float = 80.0  # Base card height in pixels (before scaling)
+## Visual scale multiplier applied to card sprites (base 56x80 → scaled 224x320)
+const CARD_SCALE: float = 4.0
+## Base width of card sprite in pixels (before CARD_SCALE applied)
+const CARD_BASE_WIDTH: float = 56.0
+## Base height of card sprite in pixels (before CARD_SCALE applied)
+const CARD_BASE_HEIGHT: float = 80.0
 
-# Derived constants (calculated from scale)
+## Derived: Final displayed width of cards (CARD_BASE_WIDTH * CARD_SCALE)
 const CARD_WIDTH: float = CARD_BASE_WIDTH * CARD_SCALE
+## Derived: Final displayed height of cards (CARD_BASE_HEIGHT * CARD_SCALE)
 const CARD_HEIGHT: float = CARD_BASE_HEIGHT * CARD_SCALE
 
-# ============================================================================
-# SPRITESHEET CONFIGURATION
-# ============================================================================
+## ============================================================================
+## SPRITESHEET CONFIGURATION
+## ============================================================================
 
-const CARD_SPRITESHEET_COLUMNS = 14   # 14 columns (column 0 is blank/back, 1-13 are A-K)
-const CARD_SPRITESHEET_ROWS = 6       # 6 rows (rows 0-3 are used, 4-5 unused color sets)
+## Number of columns in the card spritesheet (0=backs/blanks, 1-13=A through K)
+const CARD_SPRITESHEET_COLUMNS: int = 14
+## Number of rows in the card spritesheet (0-3=suits, 4-5=unused alternate colors)
+const CARD_SPRITESHEET_ROWS: int = 6

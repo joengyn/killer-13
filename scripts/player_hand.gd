@@ -10,9 +10,16 @@ var _card_original_index: Dictionary = {}  # Map each card to its original scene
 
 
 func _ready() -> void:
-	# At runtime, remove any preview cards that may exist in the scene
-	for child in get_children():
-		child.queue_free()
+	if Engine.is_editor_hint():
+		# In editor, populate _cards_in_hand with existing children for arrangement
+		_cards_in_hand.clear()
+		for child in get_children():
+			_cards_in_hand.append(child)
+		_arrange_cards()
+	else:
+		# At runtime, remove any preview cards that may exist in the scene
+		for child in get_children():
+			child.queue_free()
 
 
 func _arrange_cards() -> void:

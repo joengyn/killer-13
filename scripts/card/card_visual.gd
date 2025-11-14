@@ -1,19 +1,25 @@
 @tool
 extends Node2D
-## CardVisual - Displays a card sprite
+## CardVisual - Renders a playing card with face/back display and shadow effects
+##
+## Manages the visual representation of a Card, including sprite loading, viewport rendering,
+## and dynamic shadow positioning based on screen position. Supports @tool mode for editor preview.
 
+## The Card data this visual represents (rank + suit)
 var card: Card
-var show_back: bool = false  # Whether to display card back instead of card face
+## Whether to display the card back instead of the face
+var show_back: bool = false
 
 @onready var inner_sprite = $Viewport/InnerSprite
 @onready var outer_sprite = $OuterSprite
 @onready var shadow_sprite = $ShadowSprite
 
-# Shadow effect constants
-const SHADOW_VERTICAL_OFFSET: float = 10.0  # pixels (constant)
-const SHADOW_MAX_HORIZONTAL_OFFSET: float = 12.0  # pixels (max)
+## Shadow effect constants - control the shadow's perspective illusion
+const SHADOW_VERTICAL_OFFSET: float = 10.0  ## Fixed downward offset in pixels
+const SHADOW_MAX_HORIZONTAL_OFFSET: float = 12.0  ## Maximum horizontal shift based on distance from center
 
-var _last_shadow_update_pos: Vector2 = Vector2.ZERO  # Track last position to avoid redundant updates
+## Cache last global position to avoid redundant shadow calculations
+var _last_shadow_update_pos: Vector2 = Vector2.ZERO
 
 
 func _ready():
@@ -31,39 +37,42 @@ func _ready():
 	_load_sprite()
 
 
-func set_card(new_card: Card):
-	"""Set this visual to display a specific card"""
+## Set which card this visual should display and reload the sprite
+## @param new_card: The Card data (rank + suit) to display
+func set_card(new_card: Card) -> void:
 	card = new_card
 	if is_node_ready() and inner_sprite:
 		_load_sprite()
 
-
+## Toggle between showing the card's face or back
+## @param back: If true, shows card back; if false, shows card face
 func set_show_back(back: bool) -> void:
-	"""Toggle between showing card back or front face"""
 	show_back = back
 	if is_node_ready() and inner_sprite:
 		_load_sprite()
 
-
+## Control shadow visibility (used for hover effects and card location)
+## @param show_shadow: If true, shadow is visible; if false, it's hidden
 func set_shadow_visible(show_shadow: bool) -> void:
-	"""Show or hide the shadow effect"""
 	var shadow = _get_shadow_sprite()
 	if shadow:
 		shadow.visible = show_shadow
 
 
+## Get the inner sprite node (handles @tool mode where @onready may not execute)
+## @return: The inner Sprite2D that displays the card texture
 func _get_inner_sprite() -> Sprite2D:
-	"""Get inner sprite, handling @tool where @onready might not be ready"""
 	return inner_sprite if inner_sprite else get_node_or_null("Viewport/InnerSprite")
 
-
+## Get the outer sprite node (handles @tool mode where @onready may not execute)
+## @return: The outer Sprite2D that applies shader effects
 func _get_outer_sprite() -> Sprite2D:
-	"""Get outer sprite, handling @tool where @onready might not be ready"""
 	return outer_sprite if outer_sprite else get_node_or_null("OuterSprite")
 
 
-func _load_sprite():
-	"""Load the card sprite (front face or back based on show_back property)"""
+## Load and apply the appropriate sprite texture to the inner sprite
+## Fetches the sprite from CardLoader singleton based on card data and show_back flag
+func _load_sprite() -> void:
 	if not card and not show_back:
 		return
 
@@ -96,8 +105,9 @@ func _load_sprite():
 		spr.texture = sprite_texture
 
 
+## Update shadow position each frame if card has moved
+## Only recalculates when position changes to optimize performance
 func _process(_delta: float) -> void:
-	"""Update shadow position based on card's screen position (only if visible and position changed)"""
 	var shadow = _get_shadow_sprite()
 	if not shadow or not shadow.visible:
 		return
@@ -108,12 +118,14 @@ func _process(_delta: float) -> void:
 		_last_shadow_update_pos = global_position
 
 
+## Calculate and apply dynamic shadow offset to create perspective depth illusion
+##
+## Shadow shifts horizontally based on card's distance from screen center:
+## - Cards on the left have shadow shifted left (negative offset)
+## - Cards on the right have shadow shifted right (positive offset)
+## - Cards in center have minimal horizontal shadow shift
+## Vertical offset remains constant to maintain consistent lighting direction
 func _update_shadow_position() -> void:
-	"""Calculate and apply shadow offset based on card's distance from screen center.
-
-	Creates perspective illusion: shadow shifts horizontally away from center as card
-	moves left/right, giving appearance of floating/tilting card. Vertical offset fixed.
-	"""
 	var shadow = _get_shadow_sprite()
 	if not shadow or not is_visible_in_tree():
 		return
@@ -135,6 +147,7 @@ func _update_shadow_position() -> void:
 	shadow.offset = Vector2(horizontal_offset, SHADOW_VERTICAL_OFFSET)
 
 
+## Get the shadow sprite node (handles @tool mode where @onready may not execute)
+## @return: The Sprite2D that renders the card's drop shadow
 func _get_shadow_sprite() -> Sprite2D:
-	"""Get shadow sprite, handling @tool where @onready might not be ready"""
 	return shadow_sprite if shadow_sprite else get_node_or_null("ShadowSprite")

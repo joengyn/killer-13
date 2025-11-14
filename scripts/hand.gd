@@ -1,18 +1,22 @@
 class_name Hand
-## Represents a player's hand
+## Represents a player's hand of cards in Tiến Lên
 ##
-## Maintains an ordered collection of cards, automatically sorted by rank
-## and suit. Provides query and manipulation methods for card management.
+## Maintains an automatically-sorted collection of Card objects. Cards are always
+## sorted by rank (3 lowest, 2 highest), with suit as tiebreaker (Spades → Hearts).
+## Provides methods for querying, adding, removing, and analyzing cards.
 
+## Array of Card objects in this hand (always kept sorted)
 var cards: Array[Card] = []
 
-## Initialize hand with cards and automatically sort
+## Initialize a new hand with the given cards and sort them
+## @param initial_cards: Array of Card objects to start with
 func _init(initial_cards: Array[Card]) -> void:
 	for card in initial_cards:
 		cards.append(card as Card)
 	sort_hand()
 
-## Sort hand by rank (ascending), then by suit for tiebreaking
+## Sort the hand by rank (ascending), then suit (Spades → Hearts)
+## Called automatically after adding or removing cards
 func sort_hand() -> void:
 	cards.sort_custom(func(a: Card, b: Card) -> bool:
 		if a.rank != b.rank:
@@ -20,34 +24,42 @@ func sort_hand() -> void:
 		return a.suit < b.suit
 	)
 
-## Get number of cards in hand
+## Get the number of cards currently in hand
+## @return: Integer count of cards
 func get_card_count() -> int:
 	return cards.size()
 
-## Check if hand is empty
+## Check if hand is empty (no cards left)
+## @return: True if hand has zero cards
 func is_empty() -> bool:
 	return cards.is_empty()
 
-## Find and return the 3 of Spades card, or null if not in hand
+## Find and return the 3♠ card if present (required for first turn)
+## @return: The Card object for 3♠, or null if not in hand
 func find_three_of_spades() -> Card:
 	for card in cards:
 		if card.is_three_of_spades():
 			return card
 	return null
 
-## Check if hand contains a specific card
+## Check if this hand contains a specific card
+## @param card: The Card object to look for
+## @return: True if the card is in this hand
 func has_card(card: Card) -> bool:
 	return card in cards
 
-## Check if hand contains all cards in the given array
+## Check if this hand contains all of the given cards
+## @param check_cards: Array of Card objects to verify
+## @return: True if all cards are present in this hand
 func has_cards(check_cards: Array) -> bool:
 	for card in check_cards:
 		if not has_card(card):
 			return false
 	return true
 
-## Remove cards from hand (after playing them) and re-sort
-## Returns true if successful, false if cards don't exist
+## Remove cards from hand (called when cards are played) and re-sort
+## @param played_cards: Array of Card objects to remove
+## @return: True if all cards were found and removed, false otherwise
 func remove_cards(played_cards: Array) -> bool:
 	if not has_cards(played_cards):
 		return false
@@ -58,8 +70,9 @@ func remove_cards(played_cards: Array) -> bool:
 	sort_hand()
 	return true
 
-## Get hand as a formatted string for console output
-## Example: "3♠ 4♠ 5♠ 6♣ 7♦ 8♥ 9♠ 10♣ J♦ Q♥ K♠ A♣ 2♦"
+## Convert hand to a space-separated string for display/debugging
+## Example output: "3♠ 4♠ 5♠ 6♣ 7♦ 8♥ 9♠ 10♣ J♦ Q♥ K♠ A♣ 2♦"
+## @return: String representation of all cards in hand
 func _to_string() -> String:
 	var hand_str = ""
 	for i in range(cards.size()):
@@ -68,7 +81,9 @@ func _to_string() -> String:
 			hand_str += " "
 	return hand_str
 
-## Get all cards of a specific rank
+## Get all cards of a specific rank (e.g., all 5s, all Kings)
+## @param rank: The Card.Rank enum value to search for
+## @return: Array of Card objects matching the rank
 func get_cards_by_rank(rank: Card.Rank) -> Array[Card]:
 	var result: Array[Card] = []
 	for card in cards:
@@ -76,7 +91,8 @@ func get_cards_by_rank(rank: Card.Rank) -> Array[Card]:
 			result.append(card)
 	return result
 
-## Get highest card in hand
+## Get the highest ranking card in hand (by rank, then suit)
+## @return: The Card object with highest rank and suit, or null if hand is empty
 func get_highest_card() -> Card:
 	if cards.is_empty():
 		return null
@@ -86,7 +102,8 @@ func get_highest_card() -> Card:
 			highest = card
 	return highest
 
-## Get lowest card in hand (hand is always sorted, so returns first card)
+## Get the lowest ranking card in hand (hand is always sorted)
+## @return: The Card object with lowest rank and suit (first card), or null if hand is empty
 func get_lowest_card() -> Card:
 	if cards.is_empty():
 		return null
