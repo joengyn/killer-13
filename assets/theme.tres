@@ -1,0 +1,53 @@
+[gd_resource type="Theme" load_steps=7 format=3 uid="uid://ddd872xm0x3ui"]
+
+[ext_resource type="FontFile" uid="uid://cugnpp2dnvw3s" path="res://assets/rainyhearts.ttf" id="1_5x3i2"]
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_disabled"]
+content_margin_left = 40.0
+content_margin_top = 20.0
+content_margin_right = 40.0
+content_margin_bottom = 20.0
+bg_color = Color(0.09998595, 0.09998601, 0.099985994, 1)
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_wl1kw"]
+content_margin_left = 40.0
+content_margin_top = 20.0
+content_margin_right = 40.0
+content_margin_bottom = 20.0
+bg_color = Color(0.09998595, 0.09998601, 0.099985994, 1)
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_lu33j"]
+content_margin_left = 40.0
+content_margin_top = 20.0
+content_margin_right = 40.0
+content_margin_bottom = 20.0
+bg_color = Color(0.09998595, 0.09998601, 0.099985994, 1)
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_shared_button_panel"]
+content_margin_left = 40.0
+content_margin_top = 20.0
+content_margin_right = 40.0
+content_margin_bottom = 20.0
+bg_color = Color(0.09998595, 0.09998601, 0.099985994, 1)
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_pressed"]
+content_margin_left = 40.0
+content_margin_top = 20.0
+content_margin_right = 40.0
+content_margin_bottom = 20.0
+bg_color = Color(0.09998595, 0.09998601, 0.099985994, 1)
+
+[resource]
+default_font = ExtResource("1_5x3i2")
+default_font_size = 32
+Button/constants/h_separation = 20
+Button/font_sizes/font_size = 40
+Button/fonts/font = ExtResource("1_5x3i2")
+Button/styles/disabled = SubResource("StyleBoxFlat_disabled")
+Button/styles/focus = SubResource("StyleBoxFlat_wl1kw")
+Button/styles/hover = SubResource("StyleBoxFlat_lu33j")
+Button/styles/normal = SubResource("StyleBoxFlat_shared_button_panel")
+Button/styles/pressed = SubResource("StyleBoxFlat_pressed")
+HBoxContainer/constants/separation = 20
+PanelContainer/styles/panel = SubResource("StyleBoxFlat_shared_button_panel")
+VBoxContainer/constants/separation = 20

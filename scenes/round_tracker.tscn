@@ -1,0 +1,23 @@
+[gd_scene load_steps=5 format=3 uid="uid://b5w7p2j3g2j3h"]
+
+[ext_resource type="Script" uid="uid://br6fgin4ah1jk" path="res://scripts/round_tracker.gd" id="1_w8xjg"]
+[ext_resource type="Theme" uid="uid://ddd872xm0x3ui" path="res://assets/theme.tres" id="1_xq2kr"]
+[ext_resource type="FontFile" uid="uid://cugnpp2dnvw3s" path="res://assets/rainyhearts.ttf" id="2_font"]
+
+[sub_resource type="LabelSettings" id="LabelSettings_h23d4"]
+font = ExtResource("2_font")
+font_size = 40
+font_color = Color(0.95, 0.95, 0.95, 1)
+
+[node name="RoundTracker" type="PanelContainer"]
+offset_right = 363.0
+offset_bottom = 84.0
+theme = ExtResource("1_xq2kr")
+script = ExtResource("1_w8xjg")
+
+[node name="Label" type="Label" parent="."]
+layout_mode = 2
+text = "3♠, 4♥ 4♣, K♦"
+label_settings = SubResource("LabelSettings_h23d4")
+horizontal_alignment = 1
+vertical_alignment = 1

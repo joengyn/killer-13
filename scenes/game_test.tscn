@@ -1,6 +1,0 @@
-[gd_scene script_class="GameSimulator" load_steps=2 format=3 uid="uid://c12345678901234567890"]
-
-[ext_resource type="Script" path="res://scripts/game_simulator.gd" id="1_abcde"]
-
-[node name="GameSimulator" type="Node"]
-script = ExtResource("1_abcde")

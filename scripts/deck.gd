@@ -1,44 +1,45 @@
 class_name Deck
-## Manages a standard 52-card deck for Tiến Lên
-##
-## Creates all 52 cards (4 suits × 13 ranks), shuffles them, and deals
-## cards to players. Uses Fisher-Yates algorithm for proper randomization.
+## Deck data class - Creates and manages a deck of 52 playing cards
 
 var cards: Array[Card] = []
 
-## Create all 52 cards in the deck
-func _init() -> void:
-	# Create all 52 cards (4 suits × 13 ranks)
-	for suit_val in range(4):
-		for rank_val in range(13):
-			cards.append(Card.new(rank_val, suit_val))
+func _init():
+	_create_deck()
 
-## Shuffle the deck using Fisher-Yates algorithm
+func _create_deck() -> void:
+	"""Create all 52 cards in a standard deck"""
+	for suit in [Card.Suit.SPADES, Card.Suit.HEARTS, Card.Suit.DIAMONDS, Card.Suit.CLUBS]:
+		for rank in [Card.Rank.THREE, Card.Rank.FOUR, Card.Rank.FIVE, Card.Rank.SIX,
+					 Card.Rank.SEVEN, Card.Rank.EIGHT, Card.Rank.NINE, Card.Rank.TEN,
+					 Card.Rank.JACK, Card.Rank.QUEEN, Card.Rank.KING, Card.Rank.ACE, Card.Rank.TWO]:
+			cards.append(Card.new(rank, suit))
+
 func shuffle() -> void:
-	var n = cards.size()
-	for i in range(n - 1, 0, -1):
+	"""Shuffle the deck using Fisher-Yates algorithm"""
+	for i in range(cards.size() - 1, 0, -1):
 		var j = randi() % (i + 1)
-		# Swap
 		var temp = cards[i]
 		cards[i] = cards[j]
 		cards[j] = temp
 
-## Deal cards to players (13 cards per player)
-## Returns array of hands, one per player
-func deal(num_players: int = 4) -> Array[Array]:
-	var hands: Array[Array] = []
+func deal(num_players: int) -> Array:
+	"""
+	Deal cards to players
+	Returns Array of Arrays, each containing 13 Card objects for a player
+	"""
+	var hands: Array = []
 
-	# Initialize empty hands
+	# Create empty hand arrays for each player
 	for i in range(num_players):
-		hands.append(Array())
+		var hand: Array[Card] = []
+		hands.append(hand)
 
 	# Deal 13 cards to each player
-	var card_index = 0
-	for player in range(num_players):
-		var hand = Array()
-		for i in range(13):
-			hand.append(cards[card_index])
-			card_index += 1
-		hands[player] = hand
+	var card_idx = 0
+	for deal_round in range(13):
+		for player_idx in range(num_players):
+			if card_idx < cards.size():
+				(hands[player_idx] as Array[Card]).append(cards[card_idx])
+				card_idx += 1
 
 	return hands

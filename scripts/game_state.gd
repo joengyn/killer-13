@@ -1,5 +1,5 @@
 class_name GameState
-## Tracks all game state for a Tiến Lên game session
+## Tracks all game state for a game session
 ##
 ## Manages turn progression, pass tracking, table state, and game-over conditions.
 ## Handles player cycling, round resets, and win detection.
@@ -24,9 +24,33 @@ func _init(num: int = 4) -> void:
 		active_players.append(true)
 	current_player = 0
 
-## Move to next player in clockwise order
+## Move to next player in clockwise order, skipping inactive and passed players
 func next_player() -> void:
-	current_player = (current_player + 1) % num_players
+	var start_player = current_player
+	var iterations = 0
+	var max_iterations = num_players  # Safety limit
+
+	while iterations < max_iterations:
+		current_player = (current_player + 1) % num_players
+		iterations += 1
+
+		# Skip inactive players (no cards left)
+		if not active_players[current_player]:
+			continue
+
+		# Skip players who have already passed this round
+		if passed_players[current_player]:
+			print("  [SKIP] Player %d has already passed this round" % current_player)
+			continue
+
+		# Found a valid player who is active and hasn't passed
+		break
+
+	# Safety check: if we cycled through everyone, go back to start
+	# This shouldn't happen in normal gameplay due to all_others_passed() check
+	if iterations >= max_iterations:
+		print("  [WARNING] Cycled through all players - none available!")
+		current_player = start_player
 
 ## Get the next active player (skip players with no cards)
 func get_next_active_player() -> int:

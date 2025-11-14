@@ -1,5 +1,5 @@
 class_name Hand
-## Represents a player's hand in Tiến Lên
+## Represents a player's hand
 ##
 ## Maintains an ordered collection of cards, automatically sorted by rank
 ## and suit. Provides query and manipulation methods for card management.
@@ -7,7 +7,7 @@ class_name Hand
 var cards: Array[Card] = []
 
 ## Initialize hand with cards and automatically sort
-func _init(initial_cards: Array) -> void:
+func _init(initial_cards: Array[Card]) -> void:
 	for card in initial_cards:
 		cards.append(card as Card)
 	sort_hand()

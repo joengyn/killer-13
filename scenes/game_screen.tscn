@@ -1,24 +1,98 @@
-[gd_scene load_steps=2 format=3 uid="uid://dlsydybiw01j"]
+[gd_scene load_steps=7 format=3 uid="uid://cmnnbe4ivggmy"]
 
-[ext_resource type="Script" uid="uid://c7g0tjxo63s5u" path="res://scripts/ui/game_screen.gd" id="1_d3c21"]
+[ext_resource type="Script" uid="uid://bavh623wcfnsw" path="res://scripts/game_screen.gd" id="1_85ytm"]
+[ext_resource type="PackedScene" uid="uid://824qy16dmi7r" path="res://scenes/deck.tscn" id="3_3uriw"]
+[ext_resource type="PackedScene" uid="uid://6fwhbt860hx8" path="res://scenes/player_ui.tscn" id="4_player_ui"]
+[ext_resource type="PackedScene" uid="uid://2rr0pgluv8ba" path="res://scenes/cpu_hand.tscn" id="5_cpu_hand"]
+[ext_resource type="Theme" uid="uid://ddd872xm0x3ui" path="res://assets/theme.tres" id="7_theme"]
 
-[node name="GameScreen" type="Control"]
+[node name="GameScreen" type="Node2D"]
+script = ExtResource("1_85ytm")
+
+[node name="Deck" parent="." instance=ExtResource("3_3uriw")]
+position = Vector2(960, 540)
+
+[node name="CanvasLayer" type="CanvasLayer" parent="."]
+
+[node name="UIContainer" type="Control" parent="CanvasLayer"]
 layout_mode = 3
-anchors_preset = 0
-script = ExtResource("1_d3c21")
-
-[node name="ColorRect" type="ColorRect" parent="."]
-layout_mode = 1
-anchors_preset = 8
-anchor_left = 0.5
-anchor_top = 0.5
-anchor_right = 0.5
-anchor_bottom = 0.5
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
-color = Color(0.14118, 0.14118, 0.14118, 1)
+mouse_filter = 2
 
-[node name="StartButton" type="Button" parent="."]
-custom_minimum_size = Vector2(200, 80)
+[node name="StartButton" type="Button" parent="CanvasLayer/UIContainer"]
 layout_mode = 0
-text = "Start Game"
+anchor_left = 0.5
+anchor_right = 0.5
+offset_left = -75.0
+offset_top = 900.0
+offset_right = 75.0
+offset_bottom = 978.0
+grow_horizontal = 2
+theme = ExtResource("7_theme")
+text = "Start"
+
+[node name="PlayerPassedLabel" type="Label" parent="CanvasLayer/UIContainer"]
+visible = false
+layout_mode = 0
+offset_left = 860.0
+offset_top = 900.0
+offset_right = 1060.0
+offset_bottom = 950.0
+theme = ExtResource("7_theme")
+theme_type_variation = &"LabelLarge"
+text = "PASSED"
+horizontal_alignment = 1
+
+[node name="CPUTopPassedLabel" type="Label" parent="CanvasLayer/UIContainer"]
+visible = false
+layout_mode = 0
+offset_left = 860.0
+offset_top = 80.0
+offset_right = 1060.0
+offset_bottom = 130.0
+theme = ExtResource("7_theme")
+theme_type_variation = &"LabelLarge"
+text = "PASSED"
+horizontal_alignment = 1
+
+[node name="CPULeftPassedLabel" type="Label" parent="CanvasLayer/UIContainer"]
+visible = false
+layout_mode = 0
+offset_left = 50.0
+offset_top = 490.0
+offset_right = 250.0
+offset_bottom = 540.0
+theme = ExtResource("7_theme")
+theme_type_variation = &"LabelLarge"
+text = "PASSED"
+horizontal_alignment = 1
+
+[node name="CPURightPassedLabel" type="Label" parent="CanvasLayer/UIContainer"]
+visible = false
+layout_mode = 0
+offset_left = 1670.0
+offset_top = 490.0
+offset_right = 1870.0
+offset_bottom = 540.0
+theme = ExtResource("7_theme")
+theme_type_variation = &"LabelLarge"
+text = "PASSED"
+horizontal_alignment = 1
+
+[node name="PlayerUI" parent="." instance=ExtResource("4_player_ui")]
+
+[node name="CPUHandTop" parent="." instance=ExtResource("5_cpu_hand")]
+position = Vector2(960, -100)
+rotation = 3.1415927
+
+[node name="CPUHandLeft" parent="." instance=ExtResource("5_cpu_hand")]
+position = Vector2(-100, 540)
+rotation = 1.5708
+
+[node name="CPUHandRight" parent="." instance=ExtResource("5_cpu_hand")]
+position = Vector2(2020, 540)
+rotation = -1.5708

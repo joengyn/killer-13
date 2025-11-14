@@ -1,0 +1,52 @@
+[gd_scene load_steps=6 format=3 uid="uid://6fwhbt860hx8"]
+
+[ext_resource type="Script" uid="uid://yuc4ec4uchn8" path="res://scripts/player_ui.gd" id="1_player_ui"]
+[ext_resource type="PackedScene" uid="uid://ctdylqq525jw8" path="res://scenes/player_hand.tscn" id="2_player_hand"]
+[ext_resource type="PackedScene" uid="uid://4go8cugm16rq" path="res://scenes/play_zone.tscn" id="3_play_zone"]
+[ext_resource type="PackedScene" uid="uid://b5w7p2j3g2j3h" path="res://scenes/round_tracker.tscn" id="4_7ctsh"]
+[ext_resource type="Theme" uid="uid://ddd872xm0x3ui" path="res://assets/theme.tres" id="5_theme"]
+
+[node name="PlayerUI" type="Node2D"]
+script = ExtResource("1_player_ui")
+
+[node name="PlayZone" parent="." instance=ExtResource("3_play_zone")]
+position = Vector2(960, 540)
+
+[node name="PlayerHand" parent="." instance=ExtResource("2_player_hand")]
+position = Vector2(960, 1010)
+
+[node name="ControlUI" type="Node2D" parent="."]
+position = Vector2(960, 170)
+
+[node name="VBoxContainer" type="VBoxContainer" parent="ControlUI"]
+anchors_preset = 8
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+offset_left = -202.5
+offset_top = -59.0
+offset_right = 202.5
+offset_bottom = 59.0
+grow_horizontal = 2
+grow_vertical = 2
+theme = ExtResource("5_theme")
+
+[node name="RoundTracker" parent="ControlUI/VBoxContainer" instance=ExtResource("4_7ctsh")]
+layout_mode = 2
+
+[node name="HBoxContainer" type="HBoxContainer" parent="ControlUI/VBoxContainer"]
+layout_mode = 2
+size_flags_horizontal = 4
+theme = ExtResource("5_theme")
+alignment = 1
+
+[node name="PlayButton" type="Button" parent="ControlUI/VBoxContainer/HBoxContainer"]
+layout_mode = 2
+theme = ExtResource("5_theme")
+text = "Play"
+
+[node name="PassButton" type="Button" parent="ControlUI/VBoxContainer/HBoxContainer"]
+layout_mode = 2
+theme = ExtResource("5_theme")
+text = "Pass"
