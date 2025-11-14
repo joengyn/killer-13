@@ -14,6 +14,7 @@ var winner: int = -1
 var active_players: Array[bool] = []           # Players still in the game (have cards)
 var consecutive_passes: int = 0                # Passes in a row (resets when someone plays)
 var is_first_turn_of_game: bool = true         # Only true at the very start of the game
+var last_player_to_play: int = -1              # Player who last played cards (set the table)
 
 ## Initialize game state for the specified number of players
 func _init(num: int = 4) -> void:
@@ -78,6 +79,7 @@ func mark_player_passed() -> void:
 func mark_player_played() -> void:
 	passed_players[current_player] = false
 	consecutive_passes = 0
+	last_player_to_play = current_player  # Track who played cards
 
 ## Set the current table combination
 func set_table_combo(combo: Array) -> void:
@@ -93,10 +95,15 @@ func reset_round() -> void:
 		passed_players[i] = false
 	table_combo = []
 	consecutive_passes = 0
+	last_player_to_play = -1  # Reset - no one has played in new round yet
 
 ## Check if all other active players have passed
-# (meaning the current player's play stands)
+# (meaning the last player's play stands and they win the round)
 func all_others_passed() -> bool:
+	# If no one has played yet, can't have "all others" pass
+	if last_player_to_play == -1:
+		return false
+
 	var active_pass_count = 0
 	var num_active = 0
 
@@ -105,10 +112,11 @@ func all_others_passed() -> bool:
 			continue  # Skip inactive players
 
 		num_active += 1
-		if i != current_player and passed_players[i]:
+		# Check if all players EXCEPT the one who last played have passed
+		if i != last_player_to_play and passed_players[i]:
 			active_pass_count += 1
 
-	# All other active players passed if all but current player passed
+	# All other active players passed if all but the last player to play have passed
 	return active_pass_count == num_active - 1
 
 ## Mark a player as inactive (out of cards)

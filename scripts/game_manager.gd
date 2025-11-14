@@ -118,10 +118,32 @@ func pass_turn() -> void:
 
 	# Check if all other players passed (round over)
 	if game_state.all_others_passed():
-		print("All other players passed! Starting new round...")
-		game_state.reset_round()
+		await _handle_round_reset()
+		return  # Don't advance turn normally
 
 	_advance_turn()
+
+
+## Internal: Handle round reset when all other players have passed
+func _handle_round_reset() -> void:
+	"""Called when all players except one have passed - award round and reset"""
+	print("All other players passed! Player %d wins the round!" % game_state.last_player_to_play)
+	var round_winner = game_state.last_player_to_play
+
+	# Pause to let players see all PASSED labels
+	await get_tree().create_timer(1.5).timeout
+
+	game_state.reset_round()
+	round_started.emit()  # Signal that new round has started
+
+	# Round winner starts the new round
+	game_state.current_player = round_winner
+	turn_changed.emit(round_winner)
+
+	# If round winner is AI, execute their turn
+	if round_winner != 0:
+		await get_tree().create_timer(0.5).timeout
+		_execute_ai_turn()
 
 
 ## Check if player 0 has passed in the current round
@@ -169,10 +191,6 @@ func _execute_play(cards: Array[Card]) -> void:
 
 	# Check if this is the first play of the round (becomes set card)
 	var is_set_play = game_state.get_table_combo().is_empty()
-
-	# If starting a new round, notify listeners
-	if is_set_play:
-		round_started.emit()
 
 	# Remove cards from player's hand
 	player_hand.remove_cards(cards)
@@ -237,8 +255,8 @@ func _execute_ai_turn() -> void:
 
 		# Check if all others passed
 		if game_state.all_others_passed():
-			print("All other players passed! Starting new round...")
-			game_state.reset_round()
+			await _handle_round_reset()
+			return  # Don't advance turn normally
 	else:
 		# AI plays - cast to Array[Card] for type safety
 		var cards: Array[Card] = []

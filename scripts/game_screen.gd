@@ -240,43 +240,43 @@ func _populate_dealt_cards(num_cards_dealt: int) -> void:
 func _hide_action_buttons() -> void:
 	"""Hide play and pass buttons during dealing"""
 	if _player_ui:
-		var control_ui = _player_ui.get_node_or_null("ControlUI")
-		if control_ui:
-			control_ui.visible = false
+		var play_button = _player_ui.get_node_or_null("PlayButton")
+		var pass_button = _player_ui.get_node_or_null("PassButton")
+		if play_button:
+			play_button.visible = false
+		if pass_button:
+			pass_button.visible = false
 
 
 func _show_action_buttons() -> void:
 	"""Show play and pass buttons after dealing is complete"""
 	if _player_ui:
-		var control_ui = _player_ui.get_node_or_null("ControlUI")
-		if control_ui:
-			control_ui.visible = true
+		var play_button = _player_ui.get_node_or_null("PlayButton")
+		var pass_button = _player_ui.get_node_or_null("PassButton")
+		if play_button:
+			play_button.visible = true
+		if pass_button:
+			pass_button.visible = true
 
 
 func _on_turn_changed(player_idx: int) -> void:
 	"""Called when game turn changes - enable/disable buttons based on turn"""
 	if _player_ui:
-		var control_ui = _player_ui.get_node_or_null("ControlUI")
-		if control_ui:
-			# Keep buttons visible but disable them when it's not player 0's turn
-			var vbox = control_ui.get_node_or_null("VBoxContainer")
-			if vbox:
-				var hbox = vbox.get_node_or_null("HBoxContainer")
-				if hbox:
-					var play_button = hbox.get_node_or_null("PlayButton")
-					var pass_button = hbox.get_node_or_null("PassButton")
-					var is_player_turn = (player_idx == 0)
+		# Keep buttons visible but disable them when it's not player 0's turn
+		var play_button = _player_ui.get_node_or_null("PlayButton")
+		var pass_button = _player_ui.get_node_or_null("PassButton")
+		var is_player_turn = (player_idx == 0)
 
-					# Don't enable buttons if player has already passed
-					var has_passed = _game_manager.has_player_passed() if _game_manager else false
+		# Don't enable buttons if player has already passed
+		var has_passed = _game_manager.has_player_passed() if _game_manager else false
 
-					if play_button:
-						play_button.disabled = !is_player_turn or has_passed
-					if pass_button:
-						pass_button.disabled = !is_player_turn or has_passed
+		if play_button:
+			play_button.disabled = !is_player_turn or has_passed
+		if pass_button:
+			pass_button.disabled = !is_player_turn or has_passed
 
 
-func _on_player_played(player_idx: int, cards: Array, is_set_card: bool) -> void:
+func _on_player_played(player_idx: int, cards: Array, _is_set_card: bool) -> void:
 	"""Called when a player (human or AI) plays cards"""
 	# Only handle CPU players (player 0 handles their own visuals via drag/drop)
 	if player_idx == 0:
@@ -309,16 +309,13 @@ func _on_player_played(player_idx: int, cards: Array, is_set_card: bool) -> void
 				card_visual.set_show_back(false)
 			cards_to_move.append(card_visual)
 
-	# Move cards to play zone
-	if is_set_card:
-		# First play of round - use initialize_with_cards which handles reparenting
-		play_zone.initialize_with_cards(cards_to_move)
-	else:
-		# Response play - add as atk cards (add_atk_card handles reparenting)
-		for card in cards_to_move:
-			play_zone.add_atk_card(card)
-		# Immediately commit them to set position
-		await play_zone.commit_atk_to_set()
+	# Move cards to play zone - always go through atk → set flow
+	# Add as atk cards first (handles reparenting)
+	for card in cards_to_move:
+		play_zone.add_atk_card(card)
+
+	# Commit them to set position with animation
+	await play_zone.commit_atk_to_set()
 
 	# Rearrange CPU hand
 	if cpu_hand.has_method("_arrange_cards"):
@@ -362,6 +359,12 @@ func _on_round_started() -> void:
 		_cpu_left_passed_label.visible = false
 	if _cpu_right_passed_label:
 		_cpu_right_passed_label.visible = false
+
+	# Reset play zone to show placeholder card
+	if _player_ui:
+		var play_zone = _player_ui.get_node_or_null("PlayZone")
+		if play_zone and play_zone.has_method("reset_to_placeholder"):
+			play_zone.reset_to_placeholder()
 
 
 func _on_game_ended(winner_idx: int) -> void:

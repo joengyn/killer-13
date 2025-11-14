@@ -35,8 +35,8 @@ func _ready() -> void:
 
 func _connect_button_signals() -> void:
 	"""Connect button signal handlers"""
-	_play_button = get_node_or_null("ControlUI/VBoxContainer/HBoxContainer/PlayButton")
-	_pass_button = get_node_or_null("ControlUI/VBoxContainer/HBoxContainer/PassButton")
+	_play_button = get_node_or_null("PlayButton")
+	_pass_button = get_node_or_null("PassButton")
 
 	if _play_button:
 		_play_button.pressed.connect(_on_play_pressed)

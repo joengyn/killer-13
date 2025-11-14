@@ -15,38 +15,28 @@ position = Vector2(960, 540)
 [node name="PlayerHand" parent="." instance=ExtResource("2_player_hand")]
 position = Vector2(960, 1010)
 
-[node name="ControlUI" type="Node2D" parent="."]
-position = Vector2(960, 170)
-
-[node name="VBoxContainer" type="VBoxContainer" parent="ControlUI"]
-anchors_preset = 8
+[node name="RoundTracker" parent="." instance=ExtResource("4_7ctsh")]
+anchors_preset = 5
 anchor_left = 0.5
-anchor_top = 0.5
 anchor_right = 0.5
-anchor_bottom = 0.5
-offset_left = -202.5
-offset_top = -59.0
-offset_right = 202.5
-offset_bottom = 59.0
+offset_left = -181.5
+offset_top = 276.0
+offset_right = 181.5
+offset_bottom = 360.0
 grow_horizontal = 2
-grow_vertical = 2
-theme = ExtResource("5_theme")
 
-[node name="RoundTracker" parent="ControlUI/VBoxContainer" instance=ExtResource("4_7ctsh")]
-layout_mode = 2
-
-[node name="HBoxContainer" type="HBoxContainer" parent="ControlUI/VBoxContainer"]
-layout_mode = 2
-size_flags_horizontal = 4
-theme = ExtResource("5_theme")
-alignment = 1
-
-[node name="PlayButton" type="Button" parent="ControlUI/VBoxContainer/HBoxContainer"]
-layout_mode = 2
+[node name="PlayButton" type="Button" parent="."]
+offset_left = 800.0
+offset_top = 760.0
+offset_right = 950.0
+offset_bottom = 838.0
 theme = ExtResource("5_theme")
 text = "Play"
 
-[node name="PassButton" type="Button" parent="ControlUI/VBoxContainer/HBoxContainer"]
-layout_mode = 2
+[node name="PassButton" type="Button" parent="."]
+offset_left = 1020.0
+offset_top = 760.0
+offset_right = 1175.0
+offset_bottom = 838.0
 theme = ExtResource("5_theme")
 text = "Pass"

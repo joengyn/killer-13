@@ -8,7 +8,6 @@ var CARD_HEIGHT: float:
 const CARD_GAP: float = 20.0  # Gap between cards
 var CARD_SPACING: float:
 	get: return CARD_WIDTH + CARD_GAP
-const CARD_Y_OFFSET: float = -10.0  # Offset cards upwards in play zone
 
 var _set_cards: Array[Node] = []  # Current active cards on the table
 var _atk_cards: Array[Node] = []  # Cards player is attempting to play
@@ -94,7 +93,7 @@ func _arrange_set_cards() -> void:
 	for idx in range(card_count):
 		var child = _set_cards[idx]
 		var x = start_x + (idx * CARD_SPACING)
-		child.position = Vector2(x, CARD_Y_OFFSET)
+		child.position = Vector2(x, 0)
 		child.z_index = SET_Z_INDEX
 
 
@@ -112,7 +111,7 @@ func _arrange_atk_cards() -> void:
 		var child = _atk_cards[idx]
 		var x = start_x + (idx * CARD_SPACING)
 		# Position offset up and to the left
-		child.position = Vector2(x, CARD_Y_OFFSET) + ATK_OFFSET
+		child.position = Vector2(x, 0) + ATK_OFFSET
 		# z_index increases with index (later cards render on top)
 		child.z_index = ATK_Z_INDEX + idx
 
@@ -132,7 +131,7 @@ func _get_bounds_rect() -> Rect2:
 
 	if total_cards == 0:
 		# Return a default empty bounds centered at origin
-		return Rect2(Vector2(-CARD_WIDTH / 2.0, CARD_Y_OFFSET - CARD_HEIGHT / 2.0), Vector2(CARD_WIDTH, CARD_HEIGHT))
+		return Rect2(Vector2(-CARD_WIDTH / 2.0, -CARD_HEIGHT / 2.0), Vector2(CARD_WIDTH, CARD_HEIGHT))
 
 	# Use the larger count for width calculation
 	var card_count = max(_set_cards.size(), _atk_cards.size())
@@ -146,7 +145,7 @@ func _get_bounds_rect() -> Rect2:
 
 	# Create bounds rect centered at origin with padding for interaction
 	var bounds = Rect2(
-		Vector2(-half_width, CARD_Y_OFFSET + atk_offset_y - CARD_HEIGHT / 2.0),
+		Vector2(-half_width, atk_offset_y - CARD_HEIGHT / 2.0),
 		Vector2(total_width, CARD_HEIGHT * 2)  # Extra height to account for atk cards above
 	)
 
@@ -176,26 +175,6 @@ func set_set_cards(cards: Array[Node]) -> void:
 	_arrange_cards()
 
 
-func initialize_with_cards(cards: Array[Node]) -> void:
-	"""Initialize the play zone with starting cards (e.g., 3♠ at game start)"""
-	# Reparent all cards to play zone
-	for card in cards:
-		var old_global_pos = card.global_position
-		var old_parent = card.get_parent()
-		if old_parent:
-			old_parent.remove_child(card)
-		add_child(card)
-		card.global_position = old_global_pos
-
-		# Disable interactions for initial set cards
-		var card_interaction = card.get_node_or_null("Interaction")
-		if card_interaction:
-			card_interaction.is_player_card = false
-
-	# Set as initial set cards
-	set_set_cards(cards)
-
-
 func commit_atk_to_set() -> void:
 	"""Commit atk cards to become new set cards (called when Play is pressed and validated)"""
 	if _atk_cards.is_empty():
@@ -215,7 +194,7 @@ func commit_atk_to_set() -> void:
 	# After animation completes, finalize the transition
 	await get_tree().create_timer(0.35).timeout
 
-	# Remove old set cards from scene
+	# Remove old set cards from scene (includes face-down placeholder if present)
 	for card in _set_cards:
 		card.queue_free()
 
@@ -245,4 +224,36 @@ func _get_set_position(index: int) -> Vector2:
 	var start_x = -total_width / 2.0
 
 	var x = start_x + (index * CARD_SPACING)
-	return Vector2(x, CARD_Y_OFFSET)
+	return Vector2(x, 0)
+
+
+func reset_to_placeholder() -> void:
+	"""Reset the play zone to show only a face-down placeholder card"""
+	# Keep one set card and flip it face-down, delete the rest
+	if _set_cards.size() > 0:
+		# Keep the first card as placeholder
+		var placeholder = _set_cards[0]
+
+		# Delete all other set cards
+		for i in range(1, _set_cards.size()):
+			_set_cards[i].queue_free()
+
+		# Clear array and keep only the placeholder
+		_set_cards.clear()
+		_set_cards.append(placeholder)
+
+		# Flip it to face-down
+		if placeholder.has_method("set_show_back"):
+			placeholder.set_show_back(true)
+
+		# Position in center
+		placeholder.position = Vector2(0, 0)
+		placeholder.z_index = SET_Z_INDEX
+
+		# Ensure interactions are disabled
+		var card_interaction = placeholder.get_node_or_null("Interaction")
+		if card_interaction:
+			card_interaction.is_player_card = false
+
+	# Clear atk cards (shouldn't have any, but just in case)
+	_atk_cards.clear()
