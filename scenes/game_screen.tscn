@@ -34,6 +34,19 @@ grow_horizontal = 2
 theme = ExtResource("8_theme")
 text = "Start"
 
+[node name="InvalidPlayLabel" type="Label" parent="CanvasLayer/UIContainer"]
+visible = false
+layout_mode = 0
+offset_left = 860.0
+offset_top = 756.0
+offset_right = 1060.0
+offset_bottom = 806.0
+theme = ExtResource("8_theme")
+theme_type_variation = &"LabelLarge"
+text = "PASSED"
+horizontal_alignment = 1
+vertical_alignment = 1
+
 [node name="PlayerPassedLabel" type="Label" parent="CanvasLayer/UIContainer"]
 visible = false
 layout_mode = 0

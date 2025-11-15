@@ -4,8 +4,11 @@ extends Node2D
 const CARD_SPACING: float = 60.0  # Horizontal spacing between cards
 
 var _cards: Array[Node] = []  # Track current cards in hand
+var _original_position: Vector2 # Store the original position of the hand
 
 func _ready() -> void:
+	# Store the original position of the hand
+	_original_position = position
 	# At runtime, remove any preview cards that may exist in the scene
 	for card in get_children():
 		card.queue_free()
@@ -82,3 +85,29 @@ func clear_and_set_count(count: int) -> void:
 
 	# Arrange cards
 	_arrange_cards()
+
+
+func animate_to_center(duration: float = 0.3) -> void:
+	"""Animates the CPU hand towards the center of the screen."""
+	var tween = create_tween()
+	tween.set_ease(Tween.EASE_OUT)
+	tween.set_trans(Tween.TRANS_QUAD)
+
+	# Calculate target position: move towards the center of the screen
+	# Assuming screen center is (960, 540) for a 1920x1080 resolution
+	var screen_center = Vector2(960, 540)
+	var direction_to_center = (screen_center - global_position).normalized()
+	var offset_amount = 50 # Pixels to offset
+
+	var target_position = _original_position + direction_to_center * offset_amount
+	
+	tween.tween_property(self, "position", target_position, duration)
+
+
+func animate_to_original_position(duration: float = 0.3) -> void:
+	"""Animates the CPU hand back to its original position."""
+	var tween = create_tween()
+	tween.set_ease(Tween.EASE_OUT)
+	tween.set_trans(Tween.TRANS_QUAD)
+	tween.tween_property(self, "position", _original_position, duration)
+

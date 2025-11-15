@@ -67,6 +67,7 @@ func add_atk_card(card: Node) -> void:
 	card.set_shadow_visible(true)
 	card.z_index = ATK_Z_INDEX
 
+	_sort_atk_cards()
 	_arrange_cards()
 
 
@@ -84,7 +85,13 @@ func remove_atk_card(card: Node, new_parent: Node) -> void:
 		new_parent.add_child(card)
 		card.global_position = old_global_pos
 
+		_sort_atk_cards()
 		_arrange_cards()
+
+
+func _sort_atk_cards() -> void:
+	"""Sort the attack cards by rank, then suit, using the static helper."""
+	_atk_cards.sort_custom(Card.compare_card_nodes_lt)
 
 
 func _connect_atk_card_signals(card: Node):
@@ -139,8 +146,8 @@ func _on_atk_card_drag_ended(card: Node):
 		# Card was dragged outside play zone bounds - return to hand
 		atk_card_dragged_out.emit(card)
 	else:
-		# Card is still within play zone - could handle other logic here if needed
-		pass
+		# Card was dropped inside the play zone - just rearrange to snap it back
+		_arrange_cards()
 
 
 func _arrange_cards() -> void:
@@ -328,3 +335,24 @@ func reset_to_placeholder() -> void:
 
 	# Clear atk cards (shouldn't have any, but just in case)
 	_atk_cards.clear()
+
+
+func shake_atk_cards() -> void:
+	"""Applies a shaking animation to all cards currently in the attack zone."""
+	var shake_strength = 10 # Pixels
+	var shake_duration = 0.05 # Seconds per shake segment
+	var num_shakes = 3 # Number of back-and-forth shakes
+
+	for card in _atk_cards:
+		var original_pos = card.position
+		var tween = create_tween()
+		tween.set_trans(Tween.TRANS_SINE)
+		tween.set_ease(Tween.EASE_IN_OUT)
+
+		for i in range(num_shakes):
+			var target_pos_x = original_pos.x + (randf_range(-1.0, 1.0) * shake_strength)
+			var target_pos_y = original_pos.y + (randf_range(-1.0, 1.0) * shake_strength)
+			tween.tween_property(card, "position", Vector2(target_pos_x, target_pos_y), shake_duration)
+		
+		# Return to original position
+		tween.tween_property(card, "position", original_pos, shake_duration)

@@ -23,6 +23,12 @@ signal player_played(player_index: int, cards: Array, is_set_card: bool)
 signal player_passed(player_index: int)
 ## Emitted when game ends (someone ran out of cards)
 signal game_ended(winner: int)
+## Emitted when player 0 attempts an invalid play
+signal invalid_play_attempted(error_message: String)
+## Emitted when an AI player's turn officially starts (for visual cues)
+signal ai_turn_started(player_index: int)
+## Emitted after AI decides to play or pass, before game logic executes
+signal ai_decision_made(player_index: int, cards_to_play: Array)
 
 ## The deck of 52 cards
 var deck: Deck
@@ -68,8 +74,6 @@ func setup_game() -> void:
 	# Initialize game state for 4 players
 	game_state = GameState.new()
 
-	print("Game started! 4 players, 13 cards each.")
-
 ## Start the game after setup_game() completes
 ## Finds starting player (who has 3♠), emits signals, begins turn execution
 func start_game() -> void:
@@ -79,7 +83,6 @@ func start_game() -> void:
 	first_turn_of_game = true
 
 	_find_starting_player()
-	print("Game started! Player %d's turn (has 3♠)." % game_state.current_player)
 
 	# Emit signal to notify UI that game is ready
 	game_started.emit()
@@ -88,7 +91,6 @@ func start_game() -> void:
 
 	# If starting player is a CPU (not player 0), kick off their turn
 	if game_state.current_player != 0:
-		await get_tree().create_timer(0.5).timeout
 		_execute_ai_turn()
 
 ## Execute human player's (player 0) play attempt
@@ -99,54 +101,61 @@ func execute_player_play(cards: Array[Card]) -> bool:
 	if not is_game_running or game_state.current_player != 0:
 		return false
 
+	var error_message = ""
+
 	# Prevent playing after passing (shouldn't happen with skip logic, but safety check)
 	if game_state.has_current_player_passed():
-		print("Player 0 has already passed this round - cannot play!")
-		return false
+		error_message = "Player 0 has already passed this round - cannot play!"
+	elif cards.is_empty():
+		error_message = "No cards to play"
+	else:
+		# Validate the play using the _validate_play function
+		error_message = _validate_play(cards)
 
-	if cards.is_empty():
-		print("No cards to play")
-		return false
-
-	# Validate the play
-	var is_valid = _validate_play(cards)
-
-	if is_valid:
+	if error_message.is_empty(): # If empty, play is valid
 		# Execute the play
 		_execute_play(cards)
 		return true
 	else:
-		print("Invalid play")
+		# Consolidate the error message as requested
+		var full_error_message = "%s. Attempted to play %s." % [error_message, Combination.combo_to_string(cards)]
+		invalid_play_attempted.emit(full_error_message) # Emit the signal
 		return false
 
 
 ## Execute human player's (player 0) pass action
 ## Marks player as passed, checks for round end, advances turn
-func pass_turn() -> void:
+func pass_turn() -> bool: # Changed return type to bool
 	if not is_game_running or game_state.current_player != 0:
-		return
+		return false
+
+	# New rule: Cannot pass on first turn if player has 3♠
+	if first_turn_of_game and players[0].find_three_of_spades():
+		var error_message = "Cannot pass on the first turn if you have the 3♠!"
+		invalid_play_attempted.emit(error_message)
+		return false
 
 	# Prevent double-passing
 	if game_state.has_current_player_passed():
-		print("Player 0 has already passed this round!")
-		return
+		var error_message = "Player 0 has already passed this round!"
+		invalid_play_attempted.emit(error_message)
+		return false
 
-	print("Player 0 PASSES")
 	game_state.mark_player_passed()
 	player_passed.emit(0)
 
 	# Check if all other players passed (round over)
 	if game_state.all_others_passed():
 		await _handle_round_reset()
-		return  # Don't advance turn normally
+		return true  # Don't advance turn normally
 
 	_advance_turn()
+	return true # Pass was successful
 
 
 ## Internal: Handle round reset when all other players have passed
 func _handle_round_reset() -> void:
 	"""Called when all players except one have passed - award round and reset"""
-	print("All other players passed! Player %d wins the round!" % game_state.last_player_to_play)
 	var round_winner = game_state.last_player_to_play
 
 	# Pause to let players see all PASSED labels
@@ -173,12 +182,11 @@ func has_player_passed() -> bool:
 
 
 ## Internal: Validate a play attempt
-func _validate_play(cards: Array[Card]) -> bool:
+func _validate_play(cards: Array[Card]) -> String: # Returns error message string, empty if valid
 	"""Check if cards are valid according to game rules"""
 	# Check if it's a valid combination
 	if not Combination.is_valid(cards):
-		print("Invalid combination: %s" % Combination.combo_to_string(cards))
-		return false
+		return "Invalid combination: %s" % Combination.combo_to_string(cards)
 
 	# First turn of the game requires 3♠
 	if first_turn_of_game and game_state.current_player == _find_starting_player_index():
@@ -188,19 +196,17 @@ func _validate_play(cards: Array[Card]) -> bool:
 				has_three_spades = true
 				break
 		if not has_three_spades:
-			print("First turn requires 3♠")
-			return false
+			return "First turn requires 3♠"
 
 	# If table is empty, starting new round (any valid combo allowed)
 	if game_state.get_table_combo().is_empty():
-		return true
+		return "" # Valid play
 
 	# Table has cards - must beat them
 	if not Combination.beats(cards, game_state.get_table_combo()):
-		print("Cards don't beat table: %s" % Combination.combo_to_string(cards))
-		return false
+		return "Cards don't beat table: %s" % Combination.combo_to_string(cards)
 
-	return true
+	return "" # Valid play
 
 
 ## Internal: Execute a validated play
@@ -219,7 +225,6 @@ func _execute_play(cards: Array[Card]) -> void:
 	game_state.mark_player_played()
 	game_state.set_table_combo(cards)
 
-	print("Player %d plays %s" % [player_idx, Combination.combo_to_string(cards)])
 	player_played.emit(player_idx, cards, is_set_play)
 
 	# Check if player won
@@ -231,8 +236,6 @@ func _execute_play(cards: Array[Card]) -> void:
 	if first_turn_of_game:
 		first_turn_of_game = false
 
-	_advance_turn()
-
 
 ## Internal: Advance to the next player
 func _advance_turn() -> void:
@@ -240,15 +243,11 @@ func _advance_turn() -> void:
 	game_state.next_player()
 	var next_player = game_state.current_player
 
-	print("\n--- Turn: Player %d's turn | Cards left: %d" % [next_player, players[next_player].get_card_count()])
-
 	turn_changed.emit(next_player)
 
 	# If next player is AI (player 1, 2, or 3), execute AI turn automatically
 	if next_player != 0:
-		# Small delay so UI can update
-		await get_tree().create_timer(0.5).timeout
-		_execute_ai_turn()
+		await _execute_ai_turn() # Await the AI's full turn cycle
 
 
 ## Internal: Execute AI player's turn
@@ -257,35 +256,57 @@ func _execute_ai_turn() -> void:
 	var player_idx = game_state.current_player
 	var hand = players[player_idx]
 
+	# Emit signal for GameScreen to start visual "hand up" animation
+	ai_turn_started.emit(player_idx)
+	# Await GameScreen to complete the visual animation and initial delay
+	var game_screen_node = get_tree().get_first_node_in_group("game_screen")
+	if game_screen_node:
+		await game_screen_node.ai_visual_ready
+	else:
+		push_error("GameScreen node not found for AI visual ready signal. Adding fallback delay.")
+		await get_tree().create_timer(1.0).timeout
+
+
 	# Safety check: Skip if this player has already passed
-	# (shouldn't happen with next_player() skip logic, but just in case)
 	if game_state.has_current_player_passed():
-		print("  [WARNING] Player %d already passed - skipping AI turn" % player_idx)
-		_advance_turn()
+		_advance_turn() # Advance turn as no action will be taken
 		return
 
 	# Get AI decision
-	var cards_to_play = SimpleAI.decide_play(hand, game_state, first_turn_of_game and player_idx == _find_starting_player_index())
+	var is_first_player_with_3_spades = first_turn_of_game and player_idx == _find_starting_player_index()
+	var cards_to_play = SimpleAI.decide_play(hand, game_state, is_first_player_with_3_spades)
+
+	# Emit signal for GameScreen to show AI's decision (cards or pass)
+	ai_decision_made.emit(player_idx, cards_to_play)
+
+	var should_advance_turn_after_await = true
 
 	if cards_to_play.is_empty():
 		# AI passes
-		print("Player %d PASSES" % player_idx)
 		game_state.mark_player_passed()
-		player_passed.emit(player_idx)
+		player_passed.emit(player_idx) # This will trigger GameScreen._on_player_passed which emits ai_action_complete
 
-		# Check if all others passed
+		# Check if all others passed (round over)
 		if game_state.all_others_passed():
 			await _handle_round_reset()
-			return  # Don't advance turn normally
+			should_advance_turn_after_await = false # Round reset handles next turn
 	else:
-		# AI plays - cast to Array[Card] for type safety
+		# AI plays
 		var cards: Array[Card] = []
 		for card in cards_to_play:
 			cards.append(card as Card)
-		_execute_play(cards)
-		return  # _advance_turn already called from _execute_play
+		_execute_play(cards) # _execute_play no longer calls _advance_turn()
+		should_advance_turn_after_await = true # We need to advance turn after await
 
-	_advance_turn()
+	# Await GameScreen to complete the visual action (card movement/pass label) and delay
+	if game_screen_node:
+		await game_screen_node.ai_action_complete
+	else:
+		push_error("GameScreen node not found for AI action complete signal. Adding fallback delay.")
+		await get_tree().create_timer(1.0).timeout
+
+	if should_advance_turn_after_await:
+		_advance_turn()
 
 
 ## Internal: Find the starting player index
@@ -303,10 +324,6 @@ func _end_game(winner_idx: int) -> void:
 	is_game_running = false
 	game_won = true
 	winner = winner_idx
-
-	print("\n" + "=".repeat(80))
-	print("GAME OVER! Player %d wins!" % winner_idx)
-	print("=".repeat(80) + "\n")
 
 	game_ended.emit(winner_idx)
 

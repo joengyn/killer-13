@@ -7,20 +7,19 @@ var _current_round_cards: Array = []
 func _ready() -> void:
 	# Connect to GameManager signals
 	if GameManager:
-		GameManager.player_played.connect(_on_player_played)
 		GameManager.round_started.connect(_on_round_started)
 	
 	visible = false
 	update_label()
 
-func _on_player_played(_player_index: int, cards: Array, _is_set_card: bool) -> void:
-	_current_round_cards.append(cards)
-	visible = true
-	update_label()
-
 func _on_round_started() -> void:
 	_current_round_cards.clear()
 	visible = false
+	update_label()
+
+func _on_card_play_visual_complete(_player_index: int, cards: Array) -> void:
+	_current_round_cards.append(cards)
+	visible = true
 	update_label()
 
 func update_label() -> void:

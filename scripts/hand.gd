@@ -18,11 +18,7 @@ func _init(initial_cards: Array[Card]) -> void:
 ## Sort the hand by rank (ascending), then suit (Spades → Hearts)
 ## Called automatically after adding or removing cards
 func sort_hand() -> void:
-	cards.sort_custom(func(a: Card, b: Card) -> bool:
-		if a.rank != b.rank:
-			return a.rank < b.rank
-		return a.suit < b.suit
-	)
+	cards.sort_custom(Card.compare_cards_lt)
 
 ## Get the number of cards currently in hand
 ## @return: Integer count of cards

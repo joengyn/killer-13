@@ -105,6 +105,31 @@ func _hash() -> int:
 func _equal(other) -> bool:
 	return other is Card and equals(other)
 
+
+## Static function to be used with sort_custom for Card objects. Returns true if a < b.
+static func compare_cards_lt(a: Card, b: Card) -> bool:
+	if a.rank != b.rank:
+		return a.rank < b.rank
+	return a.suit < b.suit
+
+
+## Static function to be used with sort_custom for Node objects that have a get_card() method.
+static func compare_card_nodes_lt(a: Node, b: Node) -> bool:
+	var card_a: Card = a.get_card() if a.has_method("get_card") else null
+	var card_b: Card = b.get_card() if b.has_method("get_card") else null
+
+	if card_a and card_b:
+		return Card.compare_cards_lt(card_a, card_b)
+	# Handle cases where one or both nodes might not have a card.
+	# A node without a card is considered "greater" than one with a card.
+	elif card_a:
+		return true # a is smaller
+	elif card_b:
+		return false # b is smaller
+	else:
+		return false # both are equal in terms of sorting
+
+
 ## Create a card from a string representation (e.g., "3S", "KH", "A♠")
 static func from_string(card_str: String) -> Card:
 	if card_str.is_empty():

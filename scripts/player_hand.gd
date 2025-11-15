@@ -9,7 +9,7 @@ signal card_dragged_out(card_visual: Node)
 signal card_drag_started(card_visual: Node)
 
 const CARD_SPACING: float = 115.0  # Horizontal spacing between cards
-const PREVIEW_CARD_SPACING: float = 155.0  # Larger spacing for preview gap during drag
+const PREVIEW_CARD_SPACING: float = 195.0  # Larger spacing for preview gap during drag
 const THRESHOLD_PADDING: float = 20.0  # Extra padding around hand bounds for threshold
 const HAND_Z_INDEX_BASE: int = 20  # Base z-index for hand cards (above PlayZone cards)
 
@@ -322,6 +322,9 @@ func _calculate_insertion_index(card_visual: Node) -> int:
 
 		# If dragged card is to the left of this midpoint, insert after current card
 		if card_local_x < midpoint_x:
+			# Special case: first card - check if dragged card is left of first midpoint
+			if idx == 0:
+				return 0
 			return idx + 1
 
 	# Card is to the right of all midpoints - insert at the end
@@ -511,73 +514,24 @@ func _animate_cards_to_preview(preview_index: int) -> void:
 	_preview_tween.set_ease(Tween.EASE_OUT)
 	_preview_tween.set_parallel(true)
 
-	var gap_width = CARD_SPACING * 1.5  # Width of the gap to make room for dragged card
 	var total_cards = _cards_in_hand.size()
+	var current_card_offset_idx = 0 # This will track the index for spacing calculation, accounting for the gap
 
-	# Calculate base positions (normal positions without any gap adjustments)
-	var center_offset = -((total_cards - 1) * CARD_SPACING) / 2.0
-	var original_positions = []
-	var target_positions = []
+	# Calculate total width with the gap
+	# The gap adds PREVIEW_CARD_SPACING instead of CARD_SPACING at the insertion point
+	var total_width_with_gap = (total_cards - 1) * CARD_SPACING + (PREVIEW_CARD_SPACING - CARD_SPACING)
+	var start_x = -total_width_with_gap / 2.0
 
 	for idx in range(total_cards):
-		var original_pos = center_offset + (idx * CARD_SPACING)
-		original_positions.append(original_pos)
-		target_positions.append(original_pos)  # Start with original positions
+		var target_x = start_x + (current_card_offset_idx * CARD_SPACING)
+		if idx == preview_index:
+			# If we are at the insertion point, add the extra spacing for the gap
+			target_x += (PREVIEW_CARD_SPACING - CARD_SPACING)
 
-	# If we have cards at the insertion point, apply systematic offsets while keeping endpoints fixed
-	if total_cards >= 2 and preview_index > 0 and preview_index < total_cards:
-		# Create temporary offset amounts for all cards
-		var offset_amounts = []
-		for idx in range(total_cards):
-			offset_amounts.append(0.0)
+		_preview_tween.tween_property(_cards_in_hand[idx], "position:x", target_x, 0.15)
+		current_card_offset_idx += 1
 
-		# Calculate systematic offsets for cards between first and last
-		var left_card_idx = preview_index - 1
-		var right_card_idx = preview_index
 
-		# Apply maximum offset to the cards immediately adjacent to the gap
-		if left_card_idx >= 0:
-			offset_amounts[left_card_idx] -= gap_width / 2.0
-		if right_card_idx < total_cards:
-			offset_amounts[right_card_idx] += gap_width / 2.0
-
-		# Apply decreasing offsets to cards further from the gap, avoiding the end cards
-		# Left side: from the gap towards the first card (but not affecting the first card)
-		var left_offset_distance = 1
-		var current_left_idx = left_card_idx - 1
-		while current_left_idx > 0:  # Stop before the first card (index 0)
-			var offset_reduction = left_offset_distance * 0.3
-			var current_offset = max(0, (gap_width / 2.0) - (offset_reduction * CARD_SPACING * 0.4))
-			offset_amounts[current_left_idx] -= current_offset
-			current_left_idx -= 1
-			left_offset_distance += 1
-
-		# Right side: from the gap towards the last card (but not affecting the last card)
-		var right_offset_distance = 1
-		var current_right_idx = right_card_idx + 1
-		while current_right_idx < total_cards - 1:  # Stop before the last card
-			var offset_reduction = right_offset_distance * 0.3
-			var current_offset = max(0, (gap_width / 2.0) - (offset_reduction * CARD_SPACING * 0.4))
-			offset_amounts[current_right_idx] += current_offset
-			current_right_idx += 1
-			right_offset_distance += 1
-
-		# Apply the calculated offsets to target positions
-		# Keep the first and last cards fixed in their original positions
-		for idx in range(1, total_cards - 1):  # Only adjust internal cards
-			target_positions[idx] = original_positions[idx] + offset_amounts[idx]
-
-		# Ensure first and last cards remain unchanged
-		target_positions[0] = original_positions[0]  # First card stays fixed (already set, but explicit)
-		target_positions[total_cards - 1] = original_positions[total_cards - 1]  # Last card stays fixed
-	else:
-		# Handle cases with 0, 1, or when preview_index is at the extremes
-		# In these cases, just keep cards in their original positions
-		pass
-
-	# Apply the calculated positions to the cards
-	for idx in range(total_cards):
-		_preview_tween.tween_property(_cards_in_hand[idx], "position:x", target_positions[idx], 0.15)
 
 
 func add_card(card_data: Card) -> Node:

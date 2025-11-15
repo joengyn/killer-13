@@ -21,6 +21,11 @@ var _connected_cards: Array[Node] = []
 @onready var _cpu_top_passed_label: Label = $CanvasLayer/UIContainer/CPUTopPassedLabel
 @onready var _cpu_left_passed_label: Label = $CanvasLayer/UIContainer/CPULeftPassedLabel
 @onready var _cpu_right_passed_label: Label = $CanvasLayer/UIContainer/CPURightPassedLabel
+@onready var _invalid_play_label: Label = $CanvasLayer/UIContainer/InvalidPlayLabel # New label for invalid plays
+
+signal ai_visual_ready(player_index: int) # Emitted by GameScreen to GameManager when AI hand visual preparation is complete.
+signal ai_action_complete(player_index: int) # Emitted by GameScreen to GameManager when AI action visuals (play/pass, hand return) are complete.
+signal card_play_visual_complete(player_index: int, cards: Array)
 
 func _ready() -> void:
 	# Skip setup in editor
@@ -67,10 +72,10 @@ func _ready() -> void:
 	var cpu_left = get_node_or_null("CPUHandLeft")
 	var cpu_right = get_node_or_null("CPUHandRight")
 
-	if cpu_top:
-		_cpu_hands.append(cpu_top)
 	if cpu_left:
 		_cpu_hands.append(cpu_left)
+	if cpu_top:
+		_cpu_hands.append(cpu_top)
 	if cpu_right:
 		_cpu_hands.append(cpu_right)
 
@@ -89,6 +94,17 @@ func _ready() -> void:
 	if _deck and _deck.has_signal("deal_started"):
 		_deck.deal_started.connect(_on_deck_clicked)
 
+	# Hide invalid play label initially
+	if _invalid_play_label:
+		_invalid_play_label.visible = false
+	
+	add_to_group("game_screen")
+
+	# Connect RoundTracker to card play visual complete signal
+	var round_tracker_node = get_node_or_null("CanvasLayer/UIContainer/RoundTracker")
+	if round_tracker_node and has_signal("card_play_visual_complete"):
+		card_play_visual_complete.connect(round_tracker_node._on_card_play_visual_complete)
+
 
 
 func _on_start_button_pressed() -> void:
@@ -98,17 +114,15 @@ func _on_start_button_pressed() -> void:
 func _start_game_immediately() -> void:
 	"""Sets up and starts the game instantly without dealing animations."""
 	# First, make sure GameManager has set up the game
-	if _game_manager and _game_manager.has_method("setup_game"):
-		_game_manager.setup_game()
+	_game_manager.setup_game()
 
 	# Clear visual card state for fresh deal
-	if _game_manager and _game_manager.has_method("clear_player_visual_cards"):
-		_game_manager.clear_player_visual_cards()
+	_game_manager.clear_player_visual_cards()
 
 	# Get player hands from GameManager
 	var players = _game_manager.players
 	if not players or players.size() < 4:
-		push_error("GameManager did not set up players correctly.")
+		# push_error("GameManager did not set up players correctly.")
 		return
 
 	# Populate player's hand
@@ -120,10 +134,9 @@ func _start_game_immediately() -> void:
 				_game_manager.add_card_to_player_hand(card_visual)
 
 	# Populate CPU hands
-	# Player 1 = CPU Top, Player 2 = CPU Left, Player 3 = CPU Right
-	var cpu_map = [0, 1, 2] # Map game manager player index to _cpu_hands index
+	# Player 1 = CPU Left, Player 2 = CPU Top, Player 3 = CPU Right
 	for i in range(1, 4):
-		var cpu_hand_node = _cpu_hands[cpu_map[i-1]]
+		var cpu_hand_node = _cpu_hands[i-1]
 		if cpu_hand_node and cpu_hand_node.has_method("clear_and_set_count"):
 			cpu_hand_node.clear_and_set_count(players[i].cards.size())
 
@@ -141,20 +154,9 @@ func _start_game_immediately() -> void:
 		_connect_card_listeners(_player_hand.get_children())
 
 	# Start the game - find starting player and begin turns
-	if _game_manager and _game_manager.has_method("start_game"):
+	if _game_manager:
+		_connect_game_manager_signals()
 		_game_manager.start_game()
-
-		# Connect to game manager signals
-		if not _game_manager.turn_changed.is_connected(_on_turn_changed):
-			_game_manager.turn_changed.connect(_on_turn_changed)
-		if not _game_manager.player_played.is_connected(_on_player_played):
-			_game_manager.player_played.connect(_on_player_played)
-		if not _game_manager.player_passed.is_connected(_on_player_passed):
-			_game_manager.player_passed.connect(_on_player_passed)
-		if not _game_manager.round_started.is_connected(_on_round_started):
-			_game_manager.round_started.connect(_on_round_started)
-		if not _game_manager.game_ended.is_connected(_on_game_ended):
-			_game_manager.game_ended.connect(_on_game_ended)
 
 
 func _on_deck_clicked() -> void:
@@ -174,12 +176,10 @@ func _on_deck_clicked() -> void:
 func animate_deal_sequence() -> void:
 	"""Animate dealing 13 cards to each of 4 players (52 total)"""
 	# First, make sure GameManager has set up the game
-	if _game_manager and _game_manager.has_method("setup_game"):
-		_game_manager.setup_game()
+	_game_manager.setup_game()
 
 	# Clear visual card state for fresh deal
-	if _game_manager and _game_manager.has_method("clear_player_visual_cards"):
-		_game_manager.clear_player_visual_cards()
+	_game_manager.clear_player_visual_cards()
 
 	# Reset card tracking for this deal
 	_cards_dealt = 0
@@ -187,7 +187,7 @@ func animate_deal_sequence() -> void:
 
 	# Animate dealing 13 rounds, each round deals to 4 players
 	# Order: Bottom (Player), Left (CPU), Top (CPU), Right (CPU) - clockwise from bottom
-	var deal_order = [0, 2, 1, 3]  # Player, Left, Top, Right
+	var deal_order = [0, 1, 2, 3]  # Player, Left, Top, Right
 	var hand_positions = [
 		_player_hand.global_position if _player_hand else Vector2(960, 1010),  # Player
 		_cpu_hands[0].global_position if _cpu_hands.size() > 0 else Vector2(960, 100),  # CPU Top
@@ -223,20 +223,9 @@ func animate_deal_sequence() -> void:
 		_connect_card_listeners(_player_hand.get_children())
 
 	# Start the game - find starting player and begin turns
-	if _game_manager and _game_manager.has_method("start_game"):
+	if _game_manager:
+		_connect_game_manager_signals()
 		_game_manager.start_game()
-
-		# Connect to game manager signals
-		if not _game_manager.turn_changed.is_connected(_on_turn_changed):
-			_game_manager.turn_changed.connect(_on_turn_changed)
-		if not _game_manager.player_played.is_connected(_on_player_played):
-			_game_manager.player_played.connect(_on_player_played)
-		if not _game_manager.player_passed.is_connected(_on_player_passed):
-			_game_manager.player_passed.connect(_on_player_passed)
-		if not _game_manager.round_started.is_connected(_on_round_started):
-			_game_manager.round_started.connect(_on_round_started)
-		if not _game_manager.game_ended.is_connected(_on_game_ended):
-			_game_manager.game_ended.connect(_on_game_ended)
 
 
 func _populate_dealt_cards(num_cards_dealt: int) -> void:
@@ -324,7 +313,6 @@ func _on_play_pressed() -> void:
 	var atk_cards = get_cards_in_play()
 
 	if atk_cards.is_empty():
-		print("No cards to play")
 		if _play_button:
 			_play_button.release_focus()
 		return
@@ -344,9 +332,13 @@ func _on_play_pressed() -> void:
 		await _play_zone.commit_atk_to_set()
 		# Update GameManager state: atk cards are now set cards
 		GameManager.commit_atk_cards_to_set()
+		# Emit signal that card play visuals are complete for human player
+		card_play_visual_complete.emit(0, card_data)
+		# Advance turn after human player's successful play
+		_game_manager._advance_turn()
 	else:
 		# Play was invalid - keep atk cards in zone for adjustment
-		print("Invalid play - check console for details")
+		pass # Invalid play details are handled by GameManager.invalid_play_attempted signal
 
 	# Release focus from button
 	if _play_button:
@@ -355,15 +347,16 @@ func _on_play_pressed() -> void:
 
 func _on_pass_pressed() -> void:
 	"""Handle Pass button press - return atk cards to hand and pass turn"""
-	print("Pass button pressed")
-
 	# Return all atk cards back to hand (use GameManager as source of truth)
 	var atk_cards = GameManager.get_player_atk_cards()
 	for card in atk_cards:
 		_move_card_to_hand(card)
 
 	# Notify game manager
-	GameManager.pass_turn()
+	var pass_successful = await GameManager.pass_turn() # Get return value and await it
+
+	# If pass was not successful, the invalid_play_attempted signal would have been emitted
+	# and the UI will handle it. No need for extra logic here.
 
 	# Release focus from button
 	if _pass_button:
@@ -383,7 +376,7 @@ func _on_card_clicked(card_visual: Node) -> void:
 		_move_card_to_hand(card_visual)
 	else:
 		# Card is in an unexpected state
-		push_warning("Card click on card in location: %s" % card_location)
+		pass
 
 	# Reset hover effects after moving
 	var interaction = card_visual.get_node_or_null("Interaction")
@@ -442,7 +435,7 @@ func _on_card_drag_ended(card_visual: Node) -> void:
 			_move_card_to_hand(card_visual)
 	else:
 		# Card is in an unexpected state
-		push_warning("Card drag ended with unexpected location: %s" % card_location)
+		pass
 
 
 func _on_card_dragged_out_from_hand(card_visual: Node) -> void:
@@ -557,8 +550,9 @@ func _on_turn_changed(player_idx: int) -> void:
 		_pass_button.disabled = !is_player_turn or has_passed
 
 
-func _on_player_played(player_idx: int, cards: Array, _is_set_card: bool) -> void:
-	"""Called when a player (human or AI) plays cards"""
+
+func _on_cpu_played(player_idx: int, cards: Array, _is_set_card: bool) -> void:
+	"""Called when a CPU player plays cards"""
 	# Only handle CPU players (player 0 handles their own visuals via drag/drop)
 	if player_idx == 0:
 		return
@@ -575,6 +569,9 @@ func _on_player_played(player_idx: int, cards: Array, _is_set_card: bool) -> voi
 	# Get the play zone
 	if not _play_zone:
 		return
+
+	# Add a delay for CPU actions to smooth out gameplay
+	await get_tree().create_timer(0.8).timeout # Adjust delay as needed
 
 	# Take the last N cards from the CPU's hand visual
 	var cards_to_move: Array[Node] = []
@@ -597,40 +594,71 @@ func _on_player_played(player_idx: int, cards: Array, _is_set_card: bool) -> voi
 	# Commit them to set position with animation
 	await _play_zone.commit_atk_to_set()
 
+	# Emit signal that card play visuals are complete
+	card_play_visual_complete.emit(player_idx, cards)
+
 	# Rearrange CPU hand
 	if cpu_hand.has_method("_arrange_cards"):
 		cpu_hand._arrange_cards()
+	
+	# Animate CPU hand back to original position and emit action complete
+	cpu_hand.animate_to_original_position()
+	await get_tree().create_timer(0.3).timeout # Small delay for hand to move down
+	ai_action_complete.emit(player_idx)
+	# cpu_hand.animate_to_original_position()
 
 
 func _on_player_passed(player_idx: int) -> void:
 	"""Called when a player passes - show PASSED indicator"""
-	print("[GameScreen] Player %d passed - showing indicator" % player_idx)
 	match player_idx:
 		0:
 			# Human player
 			if _player_passed_label:
 				_player_passed_label.visible = true
-				print("[GameScreen] Player PASSED label visible")
 		1:
-			# CPU Top
-			if _cpu_top_passed_label:
-				_cpu_top_passed_label.visible = true
-				print("[GameScreen] CPU Top PASSED label visible")
-		2:
 			# CPU Left
 			if _cpu_left_passed_label:
 				_cpu_left_passed_label.visible = true
-				print("[GameScreen] CPU Left PASSED label visible")
+		2:
+			# CPU Top
+			if _cpu_top_passed_label:
+				_cpu_top_passed_label.visible = true
 		3:
 			# CPU Right
 			if _cpu_right_passed_label:
 				_cpu_right_passed_label.visible = true
-				print("[GameScreen] CPU Right PASSED label visible")
+
+	# Animate CPU hand back to original position and emit action complete
+	var cpu_hand_idx = player_idx - 1
+	if player_idx != 0 and cpu_hand_idx < _cpu_hands.size():
+		var cpu_hand = _cpu_hands[cpu_hand_idx]
+		cpu_hand.animate_to_original_position()
+		await get_tree().create_timer(0.3).timeout # Small delay for hand to move down
+		ai_action_complete.emit(player_idx)
+
+
+func _on_ai_turn_started(player_idx: int) -> void:
+	"""Handler for GameManager.ai_turn_started signal - animate CPU hand up"""
+	var cpu_hand_idx = player_idx - 1
+	if cpu_hand_idx < _cpu_hands.size():
+		var cpu_hand = _cpu_hands[cpu_hand_idx]
+		cpu_hand.animate_to_center()
+		await get_tree().create_timer(0.5).timeout # Short delay after hand moves up
+		ai_visual_ready.emit(player_idx)
+
+
+func _on_ai_decision_made(player_idx: int, cards_to_play: Array) -> void:
+	"""Handler for GameManager.ai_decision_made signal - animate CPU action and hand down"""
+	# Delay before action is visually processed
+	await get_tree().create_timer(0.8).timeout
+
+	# The actual card movement/pass label display is handled by _on_player_played / _on_player_passed
+	# which are connected to GameManager signals.
+	# The hand animation back down and ai_action_complete.emit() will now be handled there.
 
 
 func _on_round_started() -> void:
 	"""Called when a new round starts - hide all PASSED indicators"""
-	print("[GameScreen] Round started - hiding all PASSED indicators")
 	if _player_passed_label:
 		_player_passed_label.visible = false
 	if _cpu_top_passed_label:
@@ -648,4 +676,43 @@ func _on_round_started() -> void:
 func _on_game_ended(winner_idx: int) -> void:
 	"""Called when game ends"""
 	_hide_action_buttons()
-	print("Game ended! Player %d wins!" % winner_idx)
+
+
+func _on_invalid_play_attempted(_error_message: String) -> void:
+	"""Called when GameManager signals an invalid play attempt by player 0"""
+	if _invalid_play_label:
+		_invalid_play_label.text = "INVALID" # Changed to simply "INVALID"
+		_invalid_play_label.visible = true
+		
+		# Trigger the card shaking animation
+		if _play_zone and _play_zone.has_method("shake_atk_cards"):
+			_play_zone.shake_atk_cards()
+
+		# Hide the label after a short delay
+		var timer = get_tree().create_timer(3.0) # Show for 3 seconds
+		await timer.timeout
+		_invalid_play_label.visible = false
+
+func _connect_game_manager_signals() -> void:
+	if not _game_manager:
+		return
+
+	# Connect to game manager signals
+	if not _game_manager.turn_changed.is_connected(_on_turn_changed):
+		_game_manager.turn_changed.connect(_on_turn_changed)
+	if not _game_manager.player_played.is_connected(_on_cpu_played):
+		_game_manager.player_played.connect(_on_cpu_played)
+	if not _game_manager.player_passed.is_connected(_on_player_passed):
+		_game_manager.player_passed.connect(_on_player_passed)
+	if not _game_manager.round_started.is_connected(_on_round_started):
+		_game_manager.round_started.connect(_on_round_started)
+	if not _game_manager.game_ended.is_connected(_on_game_ended):
+		_game_manager.game_ended.connect(_on_game_ended)
+	if not _game_manager.invalid_play_attempted.is_connected(_on_invalid_play_attempted):
+		_game_manager.invalid_play_attempted.connect(_on_invalid_play_attempted)
+	
+	# Connect to AI orchestration signals
+	if not _game_manager.ai_turn_started.is_connected(_on_ai_turn_started):
+		_game_manager.ai_turn_started.connect(_on_ai_turn_started)
+	if not _game_manager.ai_decision_made.is_connected(_on_ai_decision_made):
+		_game_manager.ai_decision_made.connect(_on_ai_decision_made)
