@@ -290,8 +290,8 @@ func _get_hand_bounds() -> Rect2:
 func _calculate_insertion_index(card_visual: Node) -> int:
 	"""Calculate where a card should be inserted based on its current position
 
-	Converts the card's global position to local hand space and compares against
-	existing card positions to determine the insertion index.
+	Uses midpoints between adjacent cards to determine insertion point, which
+	effectively detects when the dragged card begins overlapping adjacent cards.
 
 	@param card_visual: The card node to calculate insertion index for
 	@return: Index where the card should be inserted (0 to _cards_in_hand.size())
@@ -303,24 +303,29 @@ func _calculate_insertion_index(card_visual: Node) -> int:
 	# Convert card's global position to local hand coordinates
 	var card_local_x = card_visual.global_position.x - global_position.x
 
-	# Find the insertion position by comparing with existing cards
-	var insert_idx = 0
-	for idx in range(_cards_in_hand.size()):
-		var other_card = _cards_in_hand[idx]
+	# Single card case
+	if _cards_in_hand.size() == 1:
+		var first_card_x = _cards_in_hand[0].position.x
+		# If dragged card is left of first card's center, insert at 0, otherwise at 1
+		if card_local_x < first_card_x:
+			return 0
+		else:
+			return 1
 
-		# Convert other card's position to be in the same coordinate space as the dragged card
-		# other_card.position is relative to this node, so the comparison is valid
-		var other_card_local_x = other_card.position.x
+	# Multiple cards - use midpoint thresholds between adjacent cards to detect overlap
+	for idx in range(_cards_in_hand.size() - 1):
+		var current_card_x = _cards_in_hand[idx].position.x
+		var next_card_x = _cards_in_hand[idx + 1].position.x
 
-		# If the dragged card is to the left of this card, insert before it
-		if card_local_x < other_card_local_x:
-			return insert_idx
+		# Calculate midpoint between current and next card
+		var midpoint_x = (current_card_x + next_card_x) / 2.0
 
-		# Otherwise, try the next position
-		insert_idx += 1
+		# If dragged card is to the left of this midpoint, insert after current card
+		if card_local_x < midpoint_x:
+			return idx + 1
 
-	# Card is to the right of all existing cards - insert at the end
-	return insert_idx
+	# Card is to the right of all midpoints - insert at the end
+	return _cards_in_hand.size()
 
 
 func _reorder_card_in_hand(card_visual: Node) -> void:
@@ -441,9 +446,8 @@ func _calculate_preview_index(drag_x_position: float) -> int:
 func _update_drag_preview(card: Node) -> void:
 	"""Update the preview of where the card will be inserted during drag
 
-	Called continuously during drag motion to provide real-time feedback
-	of where the card will be positioned when dropped. If the card moves
-	outside hand bounds, the preview gap is collapsed.
+	Finds which two cards the dragged card is covering and pushes them apart
+	to create a gap. If the card moves outside hand bounds, the preview gap collapses.
 
 	@param card: The card being dragged
 	"""
@@ -459,21 +463,22 @@ func _update_drag_preview(card: Node) -> void:
 			# Animate cards back to normal layout (no gap)
 			_animate_cards_to_preview(-1)
 	else:
-		# Card is within bounds - update preview
-		var new_idx = _calculate_preview_index(card.global_position.x)
+		# Calculate insertion index using the same method as _calculate_insertion_index
+		# This uses midpoints between adjacent cards for proper overlap detection
+		var preview_idx = _calculate_insertion_index(card)
 
-		# Only update if the preview position has changed
-		if new_idx != _preview_insert_index:
-			_preview_insert_index = new_idx
-			_animate_cards_to_preview(new_idx)
+		# Only update if the insertion index changed
+		if preview_idx != _preview_insert_index:
+			_preview_insert_index = preview_idx
+			_animate_cards_to_preview(preview_idx)
 
 
 func _animate_cards_to_preview(preview_index: int) -> void:
 	"""Animate cards to their preview positions with a gap for the dragged card
 
-	Creates smooth animations that show where the dragged card will be inserted
-	by leaving a gap at the preview_index position. If preview_index is -1,
-	animates cards back to normal spacing without a gap (used when card leaves bounds).
+	The dragged card "parts the sea" - creates a gap at its insertion point while
+	cards on both sides compress to maintain constant total hand width.
+	If preview_index is -1, animates cards back to normal spacing (used when card leaves bounds).
 
 	@param preview_index: Index where the gap should appear (-1 to collapse gap)
 	"""
@@ -481,42 +486,98 @@ func _animate_cards_to_preview(preview_index: int) -> void:
 	if _preview_tween:
 		_preview_tween.kill()
 
-	# Calculate total width based on whether we're in preview or collapse mode
-	var card_count_for_spacing: int
-	var spacing_to_use: float
-	if preview_index >= 0:
-		# Preview mode: include gap for dragged card with larger spacing
-		card_count_for_spacing = _cards_in_hand.size() + 1
-		spacing_to_use = PREVIEW_CARD_SPACING
-	else:
-		# Collapse mode: normal spacing without gap
-		card_count_for_spacing = _cards_in_hand.size()
-		spacing_to_use = CARD_SPACING
+	if preview_index < 0:
+		# Collapse mode: return to normal spacing
+		var card_count = _cards_in_hand.size()
+		var total_width = (card_count - 1) * CARD_SPACING
+		var start_x = -total_width / 2.0
 
-	var total_width = (card_count_for_spacing - 1) * spacing_to_use
-	var start_x = -total_width / 2.0
+		_preview_tween = create_tween()
+		_preview_tween.set_trans(Tween.TRANS_QUAD)
+		_preview_tween.set_ease(Tween.EASE_OUT)
+		_preview_tween.set_parallel(true)
 
-	# Create a single tween for synchronized animation
+		for idx in range(card_count):
+			var target_x = start_x + (idx * CARD_SPACING)
+			_preview_tween.tween_property(_cards_in_hand[idx], "position:x", target_x, 0.15)
+		return
+
+	# Preview mode: "parts the sea" spacing - systematic offset method with fixed endpoints
+	# Cards at insertion point (preview_index-1 and preview_index) get the largest offset
+	# But first and last cards stay fixed in position to prevent hand shifting
+
 	_preview_tween = create_tween()
 	_preview_tween.set_trans(Tween.TRANS_QUAD)
 	_preview_tween.set_ease(Tween.EASE_OUT)
 	_preview_tween.set_parallel(true)
 
-	# Position each card with a gap at preview_index (or without gap if preview_index is -1)
-	for idx in range(_cards_in_hand.size()):
-		var card = _cards_in_hand[idx]
-		var adjusted_idx = idx
+	var gap_width = CARD_SPACING * 1.5  # Width of the gap to make room for dragged card
+	var total_cards = _cards_in_hand.size()
 
-		# Only shift positions if we're in preview mode (preview_index >= 0)
-		if preview_index >= 0 and idx >= preview_index:
-			# This card comes after the gap, shift its position by one spacing
-			adjusted_idx = idx + 1
+	# Calculate base positions (normal positions without any gap adjustments)
+	var center_offset = -((total_cards - 1) * CARD_SPACING) / 2.0
+	var original_positions = []
+	var target_positions = []
 
-		# Calculate target position
-		var target_x = start_x + (adjusted_idx * spacing_to_use)
+	for idx in range(total_cards):
+		var original_pos = center_offset + (idx * CARD_SPACING)
+		original_positions.append(original_pos)
+		target_positions.append(original_pos)  # Start with original positions
 
-		# Animate to target position
-		_preview_tween.tween_property(card, "position:x", target_x, 0.15)
+	# If we have cards at the insertion point, apply systematic offsets while keeping endpoints fixed
+	if total_cards >= 2 and preview_index > 0 and preview_index < total_cards:
+		# Create temporary offset amounts for all cards
+		var offset_amounts = []
+		for idx in range(total_cards):
+			offset_amounts.append(0.0)
+
+		# Calculate systematic offsets for cards between first and last
+		var left_card_idx = preview_index - 1
+		var right_card_idx = preview_index
+
+		# Apply maximum offset to the cards immediately adjacent to the gap
+		if left_card_idx >= 0:
+			offset_amounts[left_card_idx] -= gap_width / 2.0
+		if right_card_idx < total_cards:
+			offset_amounts[right_card_idx] += gap_width / 2.0
+
+		# Apply decreasing offsets to cards further from the gap, avoiding the end cards
+		# Left side: from the gap towards the first card (but not affecting the first card)
+		var left_offset_distance = 1
+		var current_left_idx = left_card_idx - 1
+		while current_left_idx > 0:  # Stop before the first card (index 0)
+			var offset_reduction = left_offset_distance * 0.3
+			var current_offset = max(0, (gap_width / 2.0) - (offset_reduction * CARD_SPACING * 0.4))
+			offset_amounts[current_left_idx] -= current_offset
+			current_left_idx -= 1
+			left_offset_distance += 1
+
+		# Right side: from the gap towards the last card (but not affecting the last card)
+		var right_offset_distance = 1
+		var current_right_idx = right_card_idx + 1
+		while current_right_idx < total_cards - 1:  # Stop before the last card
+			var offset_reduction = right_offset_distance * 0.3
+			var current_offset = max(0, (gap_width / 2.0) - (offset_reduction * CARD_SPACING * 0.4))
+			offset_amounts[current_right_idx] += current_offset
+			current_right_idx += 1
+			right_offset_distance += 1
+
+		# Apply the calculated offsets to target positions
+		# Keep the first and last cards fixed in their original positions
+		for idx in range(1, total_cards - 1):  # Only adjust internal cards
+			target_positions[idx] = original_positions[idx] + offset_amounts[idx]
+
+		# Ensure first and last cards remain unchanged
+		target_positions[0] = original_positions[0]  # First card stays fixed (already set, but explicit)
+		target_positions[total_cards - 1] = original_positions[total_cards - 1]  # Last card stays fixed
+	else:
+		# Handle cases with 0, 1, or when preview_index is at the extremes
+		# In these cases, just keep cards in their original positions
+		pass
+
+	# Apply the calculated positions to the cards
+	for idx in range(total_cards):
+		_preview_tween.tween_property(_cards_in_hand[idx], "position:x", target_positions[idx], 0.15)
 
 
 func add_card(card_data: Card) -> Node:
