@@ -1,6 +1,5 @@
-[gd_scene load_steps=3 format=3 uid="uid://ctdylqq525jw8"]
+[gd_scene load_steps=2 format=3 uid="uid://ctdylqq525jw8"]
 
-[ext_resource type="PackedScene" uid="uid://c3kf4xafj2n8j" path="res://scenes/card.tscn" id="1_card"]
 [ext_resource type="Script" uid="uid://16dq8g4c5011" path="res://scripts/player_hand.gd" id="2_player_hand"]
 
 [node name="PlayerHand" type="Node2D"]

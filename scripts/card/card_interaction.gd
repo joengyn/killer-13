@@ -10,6 +10,8 @@ extends Node
 signal drag_started(card_visual: Node)
 ## Emitted when the user stops dragging this card
 signal drag_ended(card_visual: Node)
+## Emitted when the card's position is updated during a drag
+signal drag_position_updated(card_visual: Node)
 ## Emitted when the user clicks this card without dragging
 signal card_clicked(card_visual: Node)
 
@@ -60,9 +62,8 @@ static var _last_clicked_card: Node = null
 static var _last_clicked_frame: int = -1
 const CLICK_COOLDOWN_FRAMES: int = 10  ## Minimum frames between clicks on same card
 
-## Static guard to ensure only ONE card is hovered per frame (prevents overlap issues)
-static var _last_hover_frame: int = -1
-static var _hovered_card_this_frame: Node = null
+## Track if any card is currently being dragged (disables hover on all other cards)
+static var _any_card_being_dragged: Node = null
 
 
 func _ready():
@@ -154,15 +155,6 @@ func _on_click_area_input(_viewport: Node, event: InputEvent, _shape_idx: int):
 				_last_clicked_card = card_visual
 				_last_clicked_frame = current_frame
 
-				# Editor mode: log click to console
-				if Engine.is_editor_hint():
-					var card_name = ""
-					if card_visual.has_method("get_card"):
-						var card_data = card_visual.get_card()
-						if card_data:
-							card_name = card_data.to_string()
-					print("[Editor Preview] Card clicked: ", card_name if card_name else "Unknown", " - Would move to play zone")
-
 				card_clicked.emit(card_visual)
 			_mouse_pressed = false
 		get_tree().root.set_input_as_handled()
@@ -181,67 +173,51 @@ func _unhandled_input(event: InputEvent):
 			# Use global mouse position to maintain proper positioning during drag
 			var global_mouse_pos = get_viewport().get_canvas_transform().affine_inverse() * get_viewport().get_mouse_position()
 			card_visual.global_position = global_mouse_pos + _drag_offset
+			drag_position_updated.emit(card_visual)
 			get_tree().root.set_input_as_handled()
 		elif is_player_card and not _is_being_dragged:
-			# Enable hover effects for all player cards (both hand and play zone)
-			var current_frame = Engine.get_process_frames()
+			# Simplified hover logic: only hover if this card is topmost and no other card is dragging
+			var is_any_card_dragging = _any_card_being_dragged != null
 
-			# Reset hover guard if we're in a new frame
-			if _last_hover_frame != current_frame:
-				_last_hover_frame = current_frame
-				_hovered_card_this_frame = null
+			# If any card is being dragged, disable hover on all cards
+			if is_any_card_dragging:
+				if _is_mouse_over:
+					_is_mouse_over = false
+					_reset_shader_rotation()
+					if _is_in_player_hand():
+						_animate_scale_to(_base_scale)
+						_animate_position_y_to(_base_y)
+					_update_shadow_for_location()
+				return
 
-			# Check if this card is under the mouse
-			# Convert screen position to global position to account for any camera transformations
+			# Check if this card is under the mouse and is the topmost card
 			var mouse_pos = get_viewport().get_canvas_transform().affine_inverse() * get_viewport().get_mouse_position()
-			# Use base card size (56x80) and multiply by card's current scale
 			var base_card_size = Vector2(Constants.CARD_BASE_WIDTH, Constants.CARD_BASE_HEIGHT)
 			var scaled_card_size = base_card_size * card_visual.scale
 			var card_rect = Rect2(card_visual.global_position - scaled_card_size / 2.0, scaled_card_size)
 			var is_under_mouse = card_rect.has_point(mouse_pos)
 
-			# Check if this card is topmost under the mouse
-			var is_topmost = _is_topmost_by_z_index() if is_under_mouse else false
+			var should_hover = is_under_mouse and _is_topmost_by_z_index()
 
-			# Force deactivate if another card is hovered this frame
-			if _hovered_card_this_frame != null and _hovered_card_this_frame != card_visual and _is_mouse_over:
-				# Another card claimed hover - immediately deactivate
-				_is_mouse_over = false
-				_reset_shader_rotation()
-				# Only reset scale and position for hand cards
-				if _is_in_player_hand():
-					_animate_scale_to(_base_scale)
-					_animate_position_y_to(_base_y)
-				_update_shadow_for_location()
-			# Activate hover if no card claimed it yet and conditions are met
-			elif is_under_mouse and is_topmost and not _is_mouse_over and _hovered_card_this_frame == null:
-				# Claim hover for this frame
-				_hovered_card_this_frame = card_visual
+			if should_hover and not _is_mouse_over:
+				# Activate hover
 				_is_mouse_over = true
-				# Only apply scale and vertical offset for player hand cards
 				if _is_in_player_hand():
 					_animate_scale_to(_base_scale * HOVER_SCALE_MULTIPLIER)
 					_animate_position_y_to(_base_y + HOVER_VERTICAL_OFFSET)
-				# Show shadow on hover
 				if card_visual.has_method("set_shadow_visible"):
 					card_visual.set_shadow_visible(true)
 				_update_shader_rotation()
-			# Continue hover - update shader rotation as mouse moves
-			elif is_under_mouse and is_topmost and _is_mouse_over:
-				# Reclaim hover for this frame if we were hovered and still are
-				_hovered_card_this_frame = card_visual
-				# Still hovered and topmost - update rotation
+			elif should_hover and _is_mouse_over:
+				# Continue hover - update shader rotation
 				_update_shader_rotation()
-			# Deactivate hover if no longer under mouse or not topmost
-			elif (not is_under_mouse or not is_topmost) and _is_mouse_over:
-				# No longer valid for hover - deactivate
+			elif not should_hover and _is_mouse_over:
+				# Deactivate hover
 				_is_mouse_over = false
 				_reset_shader_rotation()
-				# Only reset scale and position for hand cards
 				if _is_in_player_hand():
 					_animate_scale_to(_base_scale)
 					_animate_position_y_to(_base_y)
-				# Update shadow based on location
 				_update_shadow_for_location()
 	elif event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT and not event.pressed and _is_being_dragged:
 		_end_drag()
@@ -252,6 +228,7 @@ func _unhandled_input(event: InputEvent):
 ## @param mouse_pos: Global mouse position where drag was initiated
 func _start_drag(mouse_pos: Vector2) -> void:
 	_is_being_dragged = true
+	_any_card_being_dragged = card_visual  # Track globally that a card is being dragged
 	_drag_offset = card_visual.global_position - mouse_pos
 	# Set to high z_index while dragging so it appears above all other cards
 	card_visual.z_index = 100
@@ -262,15 +239,6 @@ func _start_drag(mouse_pos: Vector2) -> void:
 	if card_visual_script:
 		card_visual_script.set_shadow_visible(true)
 
-	# Editor mode: log drag start
-	if Engine.is_editor_hint():
-		var card_name = ""
-		if card_visual.has_method("get_card"):
-			var card_data = card_visual.get_card()
-			if card_data:
-				card_name = card_data.to_string()
-		print("[Editor Preview] Drag started: ", card_name if card_name else "Unknown")
-
 	drag_started.emit(card_visual)
 
 
@@ -278,19 +246,10 @@ func _start_drag(mouse_pos: Vector2) -> void:
 ## Parent (GameScreen) handles actual card placement logic
 func _end_drag() -> void:
 	_is_being_dragged = false
+	_any_card_being_dragged = null  # Clear global drag tracking
 	_mouse_pressed = false  # Reset mouse state
 	_drag_offset = Vector2.ZERO  # Clear drag offset to prevent further movement
-	# Don't reset z_index here - let the parent (PlayerHand/PlayZone) manage it
-	# when the card is repositioned via _update_z_indices() or similar
-
-	# Editor mode: log drag end
-	if Engine.is_editor_hint():
-		var card_name = ""
-		if card_visual.has_method("get_card"):
-			var card_data = card_visual.get_card()
-			if card_data:
-				card_name = card_data.to_string()
-		print("[Editor Preview] Drag ended: ", card_name if card_name else "Unknown", " - Would evaluate drop zone")
+	card_visual.z_index = 0  # Reset z-index immediately to restore normal hover detection
 
 	drag_ended.emit(card_visual)
 
