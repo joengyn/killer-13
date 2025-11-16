@@ -11,7 +11,7 @@ var _prev_player_counts: Array[int] = [0, 0, 0, 0]  # Track previous card count 
 
 # Player interaction tracking
 var _dragging_card: Node = null
-var _connected_cards: Array[Node] = []
+
 
 @onready var _start_button: Button = $CanvasLayer/UIContainer/StartButton
 @onready var _play_button: Button = $CanvasLayer/UIContainer/PlayButton
@@ -52,31 +52,24 @@ func _ready() -> void:
 	if _play_zone and _player_hand:
 		_play_zone._player_hand = _player_hand
 
-	# Connect to PlayerHand's card signals when it handles bounds checking
-	if _player_hand and "handles_bounds_checking" in _player_hand and _player_hand.handles_bounds_checking:
-		# PlayerHand handles bounds checking and forwards other events
+	# Connect to PlayerHand's card signals
+	if _player_hand:
 		if _player_hand.has_signal("card_dragged_out"):
 			_player_hand.card_dragged_out.connect(_on_card_dragged_out_from_hand)
 		if _player_hand.has_signal("card_clicked"):
 			_player_hand.card_clicked.connect(_on_card_clicked)
 		if _player_hand.has_signal("card_drag_started"):
 			_player_hand.card_drag_started.connect(_on_card_drag_started)
-		if _player_hand.has_signal("card_drag_ended"):
-			_player_hand.card_drag_ended.connect(_on_card_drag_ended)
 
-		# Also connect to PlayZone's atk card signals for the improved architecture
-		if _play_zone:
-			if _play_zone.has_signal("atk_card_clicked"):
-				_play_zone.atk_card_clicked.connect(_on_card_clicked)
-			if _play_zone.has_signal("atk_card_dragged_out"):
-				_play_zone.atk_card_dragged_out.connect(_on_card_returned_to_hand)
-			if _play_zone.has_signal("atk_card_drag_started"):
-				_play_zone.atk_card_drag_started.connect(_on_card_drag_started)
-	else:
-		# Legacy approach - connect directly to individual cards
-		# Connect to PlayerHand's card drag-out signal
-		if _player_hand and _player_hand.has_signal("card_dragged_out"):
-			_player_hand.card_dragged_out.connect(_on_card_dragged_out_from_hand)
+
+	# Connect to PlayZone's atk card signals
+	if _play_zone:
+		if _play_zone.has_signal("atk_card_clicked"):
+			_play_zone.atk_card_clicked.connect(_on_card_clicked)
+		if _play_zone.has_signal("atk_card_dragged_out"):
+			_play_zone.atk_card_dragged_out.connect(_on_card_returned_to_hand)
+		if _play_zone.has_signal("atk_card_drag_started"):
+			_play_zone.atk_card_drag_started.connect(_on_card_drag_started)
 
 	# Get CPU hands
 	var cpu_top = get_node_or_null("CPUHandTop")
@@ -150,14 +143,9 @@ func _start_game_immediately() -> void:
 	if _start_button:
 		_start_button.visible = false
 
-	# Show play and pass buttons
 	_show_action_buttons()
 
-	# Connect drag listeners to all dealt cards
-	if _player_hand:
-		_connect_card_listeners(_player_hand.get_children())
 
-	# Start the game - find starting player and begin turns
 	if _game_manager:
 		_connect_game_manager_signals()
 		_game_manager.start_game()
@@ -228,14 +216,9 @@ func animate_deal_sequence() -> void:
 	if _deck:
 		_deck.visible = false
 
-	# Show play and pass buttons now that dealing is done
 	_show_action_buttons()
 
-	# Connect drag listeners to all dealt cards
-	if _player_hand:
-		_connect_card_listeners(_player_hand.get_children())
 
-	# Start the game - find starting player and begin turns
 	if _game_manager:
 		_connect_game_manager_signals()
 		_game_manager.start_game()
@@ -292,31 +275,7 @@ func _show_action_buttons() -> void:
 		_pass_button.visible = true
 
 
-func _connect_card_listeners(cards: Array) -> void:
-	"""Connect drag and click listeners to all cards - safe to call multiple times"""
-	for card in cards:
-		# Skip if already connected to this card
-		if card in _connected_cards:
-			continue
 
-		var interaction = card.get_node_or_null("Interaction")
-		if interaction:
-			# Check if PlayerHand handles bounds checking
-			if _player_hand and "handles_bounds_checking" in _player_hand and _player_hand.handles_bounds_checking:
-				# NEW APPROACH: When PlayerHand handles bounds checking,
-				# GameScreen should only connect to PlayerHand's higher-level signals
-				# NOT directly to individual card signals (to avoid duplication)
-				# The PlayerHand will forward relevant events to GameScreen as needed
-				# So we don't connect to the individual card signals here
-				pass
-			else:
-				# Use original system - GameScreen handles all drag logic
-				interaction.drag_started.connect(_on_card_drag_started)
-				interaction.drag_ended.connect(_on_card_drag_ended)
-				interaction.card_clicked.connect(_on_card_clicked)
-
-			# Track that we've connected this card
-			_connected_cards.append(card)
 
 
 func _on_play_pressed() -> void:
@@ -428,50 +387,7 @@ func _on_card_drag_started(card_visual: Node) -> void:
 	# Can add visual feedback here (highlight valid drop zones, etc.)
 
 
-func _on_card_drag_ended(card_visual: Node) -> void:
-	"""Handle when a card drag ends - route to appropriate zone"""
-	_dragging_card = null
 
-	if _player_hand.has_card(card_visual):
-		# Card was in hand, check if it was dragged out
-		# Check if PlayerHand version handles bounds checking by checking for the property
-		if _player_hand and "handles_bounds_checking" in _player_hand:
-			# Use the new system where PlayerHand handles hand→play_zone movement
-			# Check the handles_bounds_checking property
-			if _player_hand.handles_bounds_checking:
-				# PlayerHand handles this case, so skip here to avoid duplicate handling
-				pass
-			else:
-				# Fall back to old system behavior
-				var hand_bounds = _player_hand._get_hand_bounds()
-				var card_local_pos = card_visual.global_position - _player_hand.global_position
-				if not hand_bounds.has_point(card_local_pos):
-					# Card moved outside hand - send to play zone as atk card
-					_move_card_to_play_zone(card_visual)
-		else:
-			# Fallback for older PlayerHand versions without the flag
-			var hand_bounds = _player_hand._get_hand_bounds()
-			var card_local_pos = card_visual.global_position - _player_hand.global_position
-			if not hand_bounds.has_point(card_local_pos):
-				# Card moved outside hand - send to play zone as atk card
-				_move_card_to_play_zone(card_visual)
-	elif _play_zone.has_atk_card(card_visual):
-		# Card was in attack zone, check if it should return to hand (either inside hand bounds or outside play zone)
-		var hand_bounds = _player_hand._get_hand_bounds()
-		var play_bounds = _play_zone._get_bounds_rect()
-
-		var card_local_pos = card_visual.global_position - _player_hand.global_position
-		var card_local_pos_play = card_visual.global_position - _play_zone.global_position
-
-		if hand_bounds.has_point(card_local_pos):
-			# Card moved back into hand - return to hand
-			_move_card_to_hand(card_visual)
-		elif not play_bounds.has_point(card_local_pos_play):
-			# Card moved outside play zone bounds - return to hand
-			_move_card_to_hand(card_visual)
-	else:
-		# Card is in an unexpected state
-		pass
 
 
 func _on_card_dragged_out_from_hand(card_visual: Node) -> void:
@@ -507,16 +423,9 @@ func _move_card_to_play_zone(card: Node) -> void:
 	# Ensure click listener is still connected
 	var interaction = card.get_node_or_null("Interaction")
 	if interaction:
-		# Check if PlayerHand handles bounds checking
-		if _player_hand and "handles_bounds_checking" in _player_hand and _player_hand.handles_bounds_checking:
-			# NEW APPROACH: When PlayerHand handles bounds checking,
-			# PlayZone manages the card connections, so don't connect directly
-			# PlayZone.add_atk_card already connected the card
-			pass
-		else:
-			# LEGACY APPROACH: Connect directly to GameScreen
-			if not interaction.card_clicked.is_connected(_on_card_clicked):
-				interaction.card_clicked.connect(_on_card_clicked)
+		# PlayZone manages the card connections, so don't connect directly
+		# PlayZone.add_atk_card already connected the card
+		pass
 
 
 func _move_card_to_hand(card: Node) -> void:
@@ -532,21 +441,9 @@ func _move_card_to_hand(card: Node) -> void:
 	# Ensure listeners are connected and re-enable interaction
 	var interaction = card.get_node_or_null("Interaction")
 	if interaction:
-		# Check if PlayerHand handles bounds checking
-		if _player_hand and "handles_bounds_checking" in _player_hand and _player_hand.handles_bounds_checking:
-			# NEW APPROACH: When PlayerHand handles bounds checking,
-			# PlayerHand manages all the card connections, so don't connect directly
-			# PlayerHand._add_card_back already connected the card
-			pass
-		else:
-			# LEGACY APPROACH: Connect directly to GameScreen
-			if not interaction.drag_ended.is_connected(_on_card_drag_ended):
-				interaction.drag_ended.connect(_on_card_drag_ended)
-			if not interaction.card_clicked.is_connected(_on_card_clicked):
-				interaction.card_clicked.connect(_on_card_clicked)
-
-		# Re-enable interaction for cards returning to hand
-		interaction.is_player_card = true
+		# PlayerHand manages all the card connections, so don't connect directly
+		# PlayerHand._add_card_back already connected the card
+		pass
 
 	card.set_shadow_visible(false)
 
@@ -813,8 +710,7 @@ func _on_game_reset() -> void:
 	if round_tracker_node:
 		round_tracker_node.visible = false
 	
-	# Disconnect card listeners as cards are cleared
-	_connected_cards.clear()
+
 	_dragging_card = null
 	
 	# Reset card tracking for dealing
@@ -828,7 +724,7 @@ func _on_hand_updated(player_index: int, cards: Array[Card]) -> void:
 		# Update player 0's (human) hand
 		if _player_hand and _player_hand.has_method("clear_and_populate"):
 			_player_hand.clear_and_populate(cards)
-			_connect_card_listeners(_player_hand.get_children()) # Reconnect listeners for new cards
+
 	else:
 		# Update a CPU's hand
 		var cpu_hand_idx = player_index - 1

@@ -54,7 +54,6 @@ func next_player() -> void:
 
 		# Skip players who have already passed this round
 		if passed_players[current_player]:
-			print("  [SKIP] Player %d has already passed this round" % current_player)
 			continue
 
 		# Found a valid player who is active and hasn't passed
