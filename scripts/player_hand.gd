@@ -631,7 +631,7 @@ func set_cards_interactive(interactive: bool) -> void:
 	for card_visual in _cards_in_hand:
 		var interaction = card_visual.get_node_or_null("Interaction")
 		if interaction:
-			interaction.set_interactive(true, interactive)
+			interaction.set_interactive(interactive, interactive)
 	# Also update drag state if interactions are disabled
 	if not interactive:
 		_dragged_card = null
