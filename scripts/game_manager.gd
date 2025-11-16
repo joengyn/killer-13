@@ -62,7 +62,8 @@ func _ready():
 
 ## Initialize a new game: create deck, shuffle, deal 13 cards to 4 players
 ## Does NOT start turn execution - call start_game() after setup_game()
-func setup_game() -> void:
+## @param emit_signals: Whether to emit signals during setup (default true)
+func setup_game(emit_signals: bool = true) -> void:
 	deck = Deck.new()
 	deck.shuffle()
 
@@ -75,8 +76,10 @@ func setup_game() -> void:
 	for i in range(4):
 		players.append(Hand.new(dealt_cards[i]))
 
-	# Emit signal for player 0's initial hand
-	player_0_hand_updated.emit(players[0].cards)
+	# Emit signal for player 0's initial hand, but only if emit_signals is true
+	# For deck dealing animation, cards are populated incrementally via _populate_dealt_cards
+	if emit_signals:
+		player_0_hand_updated.emit(players[0].cards)
 
 	# Initialize game state for 4 players
 	game_state = GameState.new()
@@ -189,7 +192,10 @@ func _handle_round_reset() -> void:
 ## Used to disable Play/Pass buttons when player has already passed
 ## @return: True if player 0 passed this round
 func has_player_passed() -> bool:
-	return game_state.passed_players[0] if game_state else false
+	if game_state:
+		return game_state.passed_players[0]
+	else:
+		return false
 
 
 ## Internal: Validate a play attempt
@@ -347,6 +353,12 @@ func _end_game(winner_idx: int) -> void:
 
 ## Find player with 3♠ to start the game
 func _find_starting_player():
+	# Safety check: ensure players array is properly initialized
+	if players.size() != 4:
+		push_error("Players array not properly initialized in _find_starting_player. Size: %d" % players.size())
+		game_state.current_player = 0
+		return
+
 	for player_idx in range(4):
 		var hand = players[player_idx]
 		if hand.find_three_of_spades():
@@ -359,7 +371,7 @@ func _find_starting_player():
 func reset_game():
 	current_game_started = false
 	is_game_running = false
-	setup_game()
+	setup_game(true)
 	game_reset.emit()
 
 ## Return all player hands

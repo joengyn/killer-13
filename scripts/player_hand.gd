@@ -170,10 +170,17 @@ func _get_card_description(card_visual: Node) -> String:
 			return card_data.to_string()
 		elif card_data:
 			# Try to get rank and suit manually if to_string doesn't exist
-			var rank_str = str(card_data.rank) if card_data.rank != null else "Unknown"
-			var suit_str = str(card_data.suit) if card_data.suit != null else "Unknown"
+			var rank_str = "Unknown"
+			if card_data.rank != null:
+				rank_str = str(card_data.rank)
+			var suit_str = "Unknown"
+			if card_data.suit != null:
+				suit_str = str(card_data.suit)
 			return rank_str + " of " + suit_str
-	return str(card_visual.name) if card_visual.name != "" else "Unknown"
+	var card_name = "Unknown"
+	if card_visual.name != "":
+		card_name = card_visual.name
+	return card_name
 
 
 ## Get card description for console logging with action type

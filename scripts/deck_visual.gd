@@ -105,9 +105,11 @@ func deal_card_animated(target_pos: Vector2, player_idx: int) -> void:
 
 	# Set target rotation based on player position
 	var target_rotation = 0.0
-	if player_idx == 2:  # Left
-		target_rotation = PI / 2
-	elif player_idx == 3:  # Right
+	if player_idx == 1:  # Left - add rotation to match Right CPU
+		target_rotation = -PI / 2
+	elif player_idx == 2:  # Top - remove rotation (was PI/2, now 0.0)
+		target_rotation = 0.0  # No rotation for Top CPU
+	elif player_idx == 3:  # Right - keep rotation for consistency
 		target_rotation = -PI / 2
 
 	tween.tween_property(card, "global_position", target_pos, 0.15)

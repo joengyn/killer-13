@@ -116,7 +116,7 @@ func _on_start_button_pressed() -> void:
 func _start_game_immediately() -> void:
 	"""Sets up and starts the game instantly without dealing animations."""
 	# First, make sure GameManager has set up the game
-	_game_manager.setup_game()
+	_game_manager.setup_game(true)
 
 	# Get player hands from GameManager
 	var players = _game_manager.players
@@ -170,8 +170,9 @@ func _on_deck_clicked() -> void:
 
 func animate_deal_sequence() -> void:
 	"""Animate dealing 13 cards to each of 4 players (52 total)"""
-	# GameManager has already set up the game via reset_game()
-	# No need to call _game_manager.setup_game() here again.
+	# Set up the game (this populates the players array in the GameManager)
+	# For dealing animation, don't emit signals as cards are populated incrementally
+	_game_manager.setup_game(false)
 
 	# Reset card tracking for this deal
 	_cards_dealt = 0
@@ -180,12 +181,23 @@ func animate_deal_sequence() -> void:
 	# Animate dealing 13 rounds, each round deals to 4 players
 	# Order: Bottom (Player), Left (CPU), Top (CPU), Right (CPU) - clockwise from bottom
 	var deal_order = [0, 1, 2, 3]  # Player, Left, Top, Right
-	var hand_positions = [
-		_player_hand.global_position if _player_hand else Vector2(960, 1010),  # Player
-		_cpu_hands[0].global_position if _cpu_hands.size() > 0 else Vector2(960, 100),  # CPU Top
-		_cpu_hands[1].global_position if _cpu_hands.size() > 1 else Vector2(100, 540),  # CPU Left
-		_cpu_hands[2].global_position if _cpu_hands.size() > 2 else Vector2(1820, 540),  # CPU Right
-	]
+	var player_pos = Vector2(960, 1010)
+	if _player_hand:
+		player_pos = _player_hand.global_position
+
+	var cpu_top_pos = Vector2(960, 100)
+	if _cpu_hands.size() > 0:
+		cpu_top_pos = _cpu_hands[0].global_position
+
+	var cpu_left_pos = Vector2(100, 540)
+	if _cpu_hands.size() > 1:
+		cpu_left_pos = _cpu_hands[1].global_position
+
+	var cpu_right_pos = Vector2(1820, 540)
+	if _cpu_hands.size() > 2:
+		cpu_right_pos = _cpu_hands[2].global_position
+
+	var hand_positions = [player_pos, cpu_top_pos, cpu_left_pos, cpu_right_pos]
 	for round_num in range(13):
 		# Deal to each player in clockwise order starting from bottom
 		for order_idx in deal_order:
@@ -521,7 +533,9 @@ func _on_turn_changed(player_idx: int) -> void:
 	var is_player_turn = (player_idx == 0)
 
 	# Don't enable buttons if player has already passed
-	var has_passed = _game_manager.has_player_passed() if _game_manager else false
+	var has_passed = false
+	if _game_manager:
+		has_passed = _game_manager.has_player_passed()
 
 	# Enable/disable player card interaction
 	var can_interact_with_cards = is_player_turn and not has_passed

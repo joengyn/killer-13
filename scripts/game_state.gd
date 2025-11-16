@@ -167,8 +167,12 @@ func check_game_over() -> bool:
 ## Get a formatted string showing current game status for debugging
 ## @return: String with current player, table combo, and pass count
 func get_status() -> String:
+	var table_combo_str = "Empty"
+	if not table_combo.is_empty():
+		table_combo_str = Combination.combo_to_string(table_combo)
+
 	return "Turn: Player %d | Table: %s | Passes: %d" % [
 		current_player,
-		Combination.combo_to_string(table_combo) if not table_combo.is_empty() else "Empty",
+		table_combo_str,
 		consecutive_passes
 	]
