@@ -329,12 +329,16 @@ func _on_pass_pressed() -> void:
 		_move_card_to_hand(card)
 
 	# GameManager.pass_turn() should return instantly now
-	var pass_successful = GameManager.pass_turn()
+	var pass_result = GameManager.pass_turn()
 	
-	if pass_successful:
+	if pass_result == "pass_ok":
 		# Tell GameManager the player's action is visually complete
 		player_action_complete.emit()
-	else:
+	elif pass_result == "round_ended":
+		# Do nothing. The round_ended signal is already fired.
+		# GameScreen will handle the reset after a delay.
+		pass
+	else: # "invalid"
 		# Invalid pass attempt - re-enable buttons
 		if _game_manager.has_player_passed() == false:
 			_play_button.disabled = false
@@ -626,6 +630,12 @@ func _on_player_passed_visual(player_idx: int) -> void:
 			_player_passed_label.visible = true
 			
 
+func _on_round_ended() -> void:
+	"""Called when all but one player have passed. Waits then resets the round."""
+	await get_tree().create_timer(1.5).timeout
+	if _game_manager:
+		_game_manager.trigger_round_reset()
+
 
 func _connect_game_manager_signals() -> void:
 	if not _game_manager:
@@ -636,6 +646,8 @@ func _connect_game_manager_signals() -> void:
 		_game_manager.turn_changed.connect(_on_turn_changed)
 	if not _game_manager.round_started.is_connected(_on_round_started):
 		_game_manager.round_started.connect(_on_round_started)
+	if not _game_manager.round_ended.is_connected(_on_round_ended):
+		_game_manager.round_ended.connect(_on_round_ended)
 	if not _game_manager.game_ended.is_connected(_on_game_ended):
 		_game_manager.game_ended.connect(_on_game_ended)
 	if not _game_manager.invalid_play_attempted.is_connected(_on_invalid_play_attempted):

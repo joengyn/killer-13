@@ -15,6 +15,8 @@ extends Node
 signal game_started
 ## Emitted when a new round begins (all players passed except one, table clears)
 signal round_started
+## Emitted when the round ends visually, before the state is reset
+signal round_ended
 ## Emitted when turn advances to a new player
 signal turn_changed(player_index: int)
 ## Emitted when any player plays cards (is_set_card = true if first play of round)
@@ -133,25 +135,31 @@ func execute_player_play(cards: Array[Card]) -> bool:
 
 ## Execute human player's (player 0) pass action
 ## Marks player as passed, checks for round end, advances turn
-func pass_turn() -> bool:
+func pass_turn() -> String:
 	"""Human player (player 0) passes their turn
 
-	@return: True if pass was successful, false if invalid
+	@return: "invalid", "pass_ok", or "round_ended"
 	"""
 	if not is_game_running or game_state.current_player != 0:
-		return false
+		return "invalid"
 
-	# Cannot pass on first turn if player has 3♠
-	if first_turn_of_game and players[0].find_three_of_spades():
-		var error_message = "Cannot pass on the first turn if you have the 3♠!"
+	# Check for conditions where passing is not allowed
+	if game_state.get_table_combo().is_empty():
+		var error_message = "You must play a card to start the round."
+		if first_turn_of_game:
+			# This is the very first turn of the game. The player with 3 of spades must play.
+			# This function is only for player 0, so we check if they have it.
+			if players[0].find_three_of_spades():
+				error_message = "Cannot pass on the first turn if you have the 3♠!"
+		
 		invalid_play_attempted.emit(error_message)
-		return false
+		return "invalid"
 
-	# Prevent double-passing
+	# Prevent double-passing in the same round
 	if game_state.has_current_player_passed():
-		var error_message = "Player 0 has already passed this round!"
+		var error_message = "You have already passed this round!"
 		invalid_play_attempted.emit(error_message)
-		return false
+		return "invalid"
 
 	game_state.mark_player_passed()
 	player_passed.emit(0)
@@ -161,14 +169,14 @@ func pass_turn() -> bool:
 
 	# Check if all other players passed (round over)
 	if game_state.all_others_passed():
-		_handle_round_reset()
-		return true
+		round_ended.emit()
+		return "round_ended"
 
-	return true
+	return "pass_ok"
 
 
 ## Internal: Handle round reset when all other players have passed
-func _handle_round_reset() -> void:
+func trigger_round_reset() -> void:
 
 	var round_winner = game_state.last_player_to_play
 
@@ -287,6 +295,12 @@ func _execute_ai_turn() -> void:
 	var player_idx = game_state.current_player
 	var hand = players[player_idx]
 
+	# NEW LOGIC: If this AI won the round, trigger the reset.
+	# The reset will make it this AI's turn again with a clear table.
+	if game_state.all_others_passed():
+		round_ended.emit()
+		return # Stop execution here, the reset will trigger the next turn.
+
 	if game_state.has_current_player_passed():
 		_advance_turn()
 		return
@@ -313,7 +327,7 @@ func _on_ai_action_complete(player_idx: int, cards_played: Array) -> void:
 		
 		# Check if all others passed (round ends)
 		if game_state.all_others_passed():
-			_handle_round_reset()
+			round_ended.emit()
 			return  # Don't advance turn - round reset handles it
 	else:
 		# AI played cards - execute the play
