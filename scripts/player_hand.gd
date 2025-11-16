@@ -533,10 +533,10 @@ func _animate_cards_to_preview(preview_index: int) -> void:
 	# Calculate total width with the gap
 	# The gap adds GameConstants.HAND_PREVIEW_GAP instead of GameConstants.HAND_CARD_SPACING at the insertion point
 	var total_width_with_gap = (total_cards - 1) * GameConstants.HAND_CARD_SPACING + (GameConstants.HAND_PREVIEW_GAP - GameConstants.HAND_CARD_SPACING)
-	var start_x = -total_width_with_gap / 2.0
+	var start_x_with_gap = -total_width_with_gap / 2.0
 
 	for idx in range(total_cards):
-		var target_x = start_x + (current_card_offset_idx * GameConstants.HAND_CARD_SPACING)
+		var target_x = start_x_with_gap + (current_card_offset_idx * GameConstants.HAND_CARD_SPACING)
 		if idx == preview_index:
 			# If we are at the insertion point, add the extra spacing for the gap
 			target_x += (GameConstants.HAND_PREVIEW_GAP - GameConstants.HAND_CARD_SPACING)

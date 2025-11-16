@@ -25,7 +25,7 @@ enum Type {
 ## Analyze an array of cards and detect its combination type
 ## @param cards: Array of Card objects to analyze
 ## @return: Type enum value (INVALID if not a valid combination)
-static func detect_type(cards: Array) -> Type:
+static func detect_type(cards: Array[Card]) -> Type:
 	if cards.is_empty():
 		return Type.INVALID
 
@@ -83,7 +83,7 @@ static func detect_type(cards: Array) -> Type:
 ## Straights in Tiến Lên can only use ranks 3-A; 2s are not allowed in straights.
 ## @param cards: Pre-sorted array of Card objects (assumed sorted by rank)
 ## @return: True if cards form a valid straight
-static func is_straight(cards: Array) -> bool:
+static func is_straight(cards: Array[Card]) -> bool:
 	if cards.size() < 4:
 		return false
 
@@ -106,7 +106,7 @@ static func is_straight(cards: Array) -> bool:
 ## Example: 3♠3♥ 4♦4♣ 5♠5♥ (three pairs: 3-3, 4-4, 5-5)
 ## @param cards: Pre-sorted array of Card objects (assumed sorted by rank)
 ## @return: True if cards form valid consecutive pairs
-static func is_consecutive_pairs(cards: Array) -> bool:
+static func is_consecutive_pairs(cards: Array[Card]) -> bool:
 	if cards.size() < 6 or cards.size() % 2 != 0:
 		return false
 
@@ -130,14 +130,14 @@ static func is_consecutive_pairs(cards: Array) -> bool:
 ## Check if an array of cards forms any valid combination
 ## @param cards: Array of Card objects to validate
 ## @return: True if the combination is valid (not INVALID type)
-static func is_valid(cards: Array) -> bool:
+static func is_valid(cards: Array[Card]) -> bool:
 	return detect_type(cards) != Type.INVALID
 
 ## Check if a combination contains the 3 of spades
 ## Used for first turn validation (3♠ is required on game's opening play)
 ## @param cards: Array of Card objects to check
 ## @return: True if 3♠ is present in the combination
-static func contains_three_of_spades(cards: Array) -> bool:
+static func contains_three_of_spades(cards: Array[Card]) -> bool:
 	for card in cards:
 		if (card as Card).is_three_of_spades():
 			return true
@@ -148,7 +148,7 @@ static func contains_three_of_spades(cards: Array) -> bool:
 ## This ensures rank is primary factor, suit is tiebreaker
 ## @param cards: Array of Card objects
 ## @return: Integer strength value (-1 if empty, higher = stronger)
-static func get_strength(cards: Array) -> int:
+static func get_strength(cards: Array[Card]) -> int:
 	if cards.is_empty():
 		return -1
 
@@ -175,7 +175,7 @@ static func get_strength(cards: Array) -> int:
 ## @param combo1: First combination (attacker)
 ## @param combo2: Second combination (defender)
 ## @return: True if combo1 beats combo2
-static func beats(combo1: Array, combo2: Array) -> bool:
+static func beats(combo1: Array[Card], combo2: Array[Card]) -> bool:
 	var type1 = detect_type(combo1)
 	var type2 = detect_type(combo2)
 
@@ -228,7 +228,7 @@ static func type_to_string(combo_type: Type) -> String:
 ## Convert a combination to a space-separated string (e.g., "3♠ 4♠ 5♠")
 ## @param cards: Array of Card objects
 ## @return: String representation with card symbols
-static func combo_to_string(cards: Array) -> String:
+static func combo_to_string(cards: Array[Card]) -> String:
 	var inner_result = ""
 	for i in range(cards.size()):
 		inner_result += (cards[i] as Card)._to_string()

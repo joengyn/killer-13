@@ -235,7 +235,7 @@ func _populate_dealt_cards(num_cards_dealt: int) -> void:
 	# Add new cards to player hand if count increased
 	if _player_hand and _player_hand.has_method("add_card"):
 		for i in range(_prev_player_counts[0], player_counts[0]):
-			var card_visual = _player_hand.add_card(players[0].cards[i])
+			var _card_visual = _player_hand.add_card(players[0].cards[i])
 
 
 	# Add new cards to CPU hands if count increased
@@ -736,7 +736,7 @@ func _on_hand_updated(player_index: int, cards: Array[Card]) -> void:
 				cpu_hand_node.clear_and_set_count(cards.size())
 
 
-func _on_player_0_attack_zone_updated(cards: Array[Card]) -> void:
+func _on_player_0_attack_zone_updated() -> void:
 	"""Handler for GameManager.player_0_attack_zone_updated signal - updates player 0's visual attack zone."""
 	# This signal is emitted when player 0 successfully plays cards.
 	# The visual update (moving cards from hand to attack zone) is already handled by _on_play_pressed
@@ -744,7 +744,7 @@ func _on_player_0_attack_zone_updated(cards: Array[Card]) -> void:
 	pass
 
 
-func _on_player_0_set_zone_updated(cards: Array[Card]) -> void:
+func _on_player_0_set_zone_updated() -> void:
 	"""Handler for GameManager.player_0_set_zone_updated signal - updates player 0's visual set zone."""
 	# This signal is emitted when player 0 successfully plays cards and they are committed to the set.
 	# The visual update (moving cards from attack zone to set zone) is already handled by _on_play_pressed

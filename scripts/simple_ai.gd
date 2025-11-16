@@ -132,7 +132,7 @@ static func _calculate_pass_benefit(hand: Hand) -> int:
 
 ## Assign a strategic score to a given play
 ## Higher score means a better play.
-static func evaluate_play(play_cards: Array, hand: Hand) -> int:
+static func evaluate_play(play_cards: Array[Card], hand: Hand) -> int:
 	var score = 0
 
 	# Base score: prioritize playing more cards
@@ -170,37 +170,37 @@ static func evaluate_play(play_cards: Array, hand: Hand) -> int:
 
 
 ## Find all valid combinations from the hand that can beat the table combo
-static func find_all_beating_combos(hand: Hand, table_combo: Array) -> Array:
+static func find_all_beating_combos(hand: Hand, table_combo: Array[Card]) -> Array:
 	var beating_combos: Array = []
 
 	var all_singles = _find_all_singles(hand)
 	for combo in all_singles:
-		if Combination.beats(combo, table_combo):
+		if Combination.beats(combo as Array[Card], table_combo):
 			beating_combos.append(combo)
 
 	var all_pairs = _find_all_pairs(hand)
 	for combo in all_pairs:
-		if Combination.beats(combo, table_combo):
+		if Combination.beats(combo as Array[Card], table_combo):
 			beating_combos.append(combo)
 
 	var all_triples = _find_all_triples(hand)
 	for combo in all_triples:
-		if Combination.beats(combo, table_combo):
+		if Combination.beats(combo as Array[Card], table_combo):
 			beating_combos.append(combo)
 
 	var all_quads = _find_all_quads(hand)
 	for combo in all_quads:
-		if Combination.beats(combo, table_combo):
+		if Combination.beats(combo as Array[Card], table_combo):
 			beating_combos.append(combo)
 
 	var all_straights = _find_all_straights(hand)
 	for combo in all_straights:
-		if Combination.beats(combo, table_combo):
+		if Combination.beats(combo as Array[Card], table_combo):
 			beating_combos.append(combo)
 
 	var all_consecutive_pairs = _find_all_consecutive_pairs(hand)
 	for combo in all_consecutive_pairs:
-		if Combination.beats(combo, table_combo):
+		if Combination.beats(combo as Array[Card], table_combo):
 			beating_combos.append(combo)
 
 	return beating_combos
@@ -316,7 +316,7 @@ static func try_build_straight(hand: Hand, start_rank: int, length: int) -> Arra
 	if start_rank + length > 13:
 		return []  # Can't build straight that long from this rank
 
-	var straight: Array = []
+	var straight: Array[Card] = []
 	for i in range(length):
 		var rank = start_rank + i
 		if rank == Card.Rank.TWO:
@@ -357,7 +357,8 @@ static func _find_all_quads(hand: Hand) -> Array:
 	for rank in range(Card.Rank.THREE, Card.Rank.TWO + 1): # All ranks
 		var cards_of_rank = hand.get_cards_by_rank(rank)
 		if cards_of_rank.size() >= 4:
-			all_quads.append([cards_of_rank[0], cards_of_rank[1], cards_of_rank[2], cards_of_rank[3]])
+			var quad_combo: Array[Card] = [cards_of_rank[0], cards_of_rank[1], cards_of_rank[2], cards_of_rank[3]]
+			all_quads.append(quad_combo)
 	return all_quads
 
 ## Find all possible consecutive pairs (bombs) in the hand
@@ -376,7 +377,8 @@ static func _find_all_consecutive_pairs(hand: Hand) -> Array:
 static func _find_all_singles(hand: Hand) -> Array:
 	var all_singles: Array = []
 	for card in hand.cards:
-		all_singles.append([card])
+		var single_combo: Array[Card] = [card]
+		all_singles.append(single_combo)
 	return all_singles
 
 ## Find the best combination to play when the table is empty
@@ -422,7 +424,7 @@ static func find_best_opening_play(hand: Hand) -> Array:
 ## @param num_pairs: Number of consecutive pairs needed (minimum 3)
 ## @return: Array of cards forming consecutive pairs, or empty if cannot build
 static func try_build_consecutive_pairs(hand: Hand, start_rank: int, num_pairs: int) -> Array:
-	var pairs: Array = []
+	var pairs: Array[Card] = []
 	for i in range(num_pairs):
 		var rank = start_rank + i
 		var cards = hand.get_cards_by_rank(rank)
@@ -451,7 +453,8 @@ static func _find_all_triples(hand: Hand) -> Array:
 	for rank in range(Card.Rank.THREE, Card.Rank.TWO + 1): # All ranks
 		var cards_of_rank = hand.get_cards_by_rank(rank)
 		if cards_of_rank.size() >= 3:
-			all_triples.append([cards_of_rank[0], cards_of_rank[1], cards_of_rank[2]])
+			var triple_combo: Array[Card] = [cards_of_rank[0], cards_of_rank[1], cards_of_rank[2]]
+			all_triples.append(triple_combo)
 	return all_triples
 
 ## Find all possible pairs in the hand
@@ -460,5 +463,6 @@ static func _find_all_pairs(hand: Hand) -> Array:
 	for rank in range(Card.Rank.THREE, Card.Rank.TWO + 1): # All ranks
 		var cards_of_rank = hand.get_cards_by_rank(rank)
 		if cards_of_rank.size() >= 2:
-			all_pairs.append([cards_of_rank[0], cards_of_rank[1]])
+			var pair_combo: Array[Card] = [cards_of_rank[0], cards_of_rank[1]]
+			all_pairs.append(pair_combo)
 	return all_pairs
