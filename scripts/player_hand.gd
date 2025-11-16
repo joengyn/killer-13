@@ -330,6 +330,14 @@ func _calculate_insertion_index(card_visual: Node) -> int:
 	# Card is to the right of all midpoints - insert at the end
 	return _cards_in_hand.size()
 
+func _find_sorted_insertion_index(new_card_visual: Node) -> int:
+	"""Finds the correct index to insert a new card visual to maintain sorted order by card value."""
+	for i in range(_cards_in_hand.size()):
+		var existing_card_visual = _cards_in_hand[i]
+		if Card.compare_card_nodes_lt(new_card_visual, existing_card_visual):
+			return i
+	return _cards_in_hand.size() # Insert at the end if it's the largest
+
 
 func _reorder_card_in_hand(card_visual: Node) -> void:
 	"""Reorder a card in the hand based on its current position
@@ -373,7 +381,7 @@ func _add_card_back(card: Node) -> void:
 		return
 
 	# Calculate insertion position based on card's current global position
-	var insert_pos = _calculate_insertion_index(card)
+	var insert_pos = _find_sorted_insertion_index(card)
 
 	# Insert at the position-based location
 	_cards_in_hand.insert(insert_pos, card)
@@ -611,3 +619,37 @@ func clear_and_populate(cards: Array[Card]) -> void:
 	# Update z indices and arrange
 	_update_z_indices()
 	_arrange_cards()
+
+func set_cards_interactive(interactive: bool) -> void:
+	for card_visual in _cards_in_hand:
+		var interaction = card_visual.get_node_or_null("Interaction")
+		if interaction:
+			interaction.set_interactive(true, interactive)
+	# Also update drag state if interactions are disabled
+	if not interactive:
+		_dragged_card = null
+		if _preview_tween:
+			_preview_tween.kill()
+			_preview_tween = null
+		_preview_insert_index = -1
+		_arrange_cards() # Re-arrange to remove any preview gaps
+
+
+func clear_all_cards() -> void:
+	"""Removes all cards from the player's hand and resets internal state."""
+	for card in _cards_in_hand:
+		card.queue_free()
+	_cards_in_hand.clear()
+	_dragged_card = null
+	_preview_insert_index = -1
+	if _preview_tween:
+		_preview_tween.kill()
+		_preview_tween = null
+
+func has_card(card_visual: Node) -> bool:
+	"""Checks if the given visual card is currently in this hand."""
+	return card_visual in _cards_in_hand
+
+func get_cards() -> Array[Node]:
+	"""Returns the array of visual card nodes currently in the hand."""
+	return _cards_in_hand

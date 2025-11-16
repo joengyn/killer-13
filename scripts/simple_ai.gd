@@ -37,23 +37,32 @@ static func decide_play(hand: Hand, game_state: GameState, is_first_turn: bool) 
 
 	# If table is empty, start a new round
 	if game_state.get_table_combo().is_empty():
-		# Play lowest card to start
-		var lowest = hand.get_lowest_card()
-		return [lowest] if lowest else []
+		var best_opening_play = find_best_opening_play(hand)
+		return best_opening_play
 
 	# Try to beat the table combo
 	var table_combo = game_state.get_table_combo()
 	var combo_type = Combination.detect_type(table_combo)
 
-	var play = find_lowest_beating_combo(hand, table_combo, combo_type)
-	if play and not play.is_empty():
-		return play
+	var all_beating_combos = find_all_beating_combos(hand, table_combo)
+	var best_play: Array = []
+	var highest_score = -INF
+
+	for play in all_beating_combos:
+		var score = evaluate_play(play, hand)
+		if score > highest_score:
+			highest_score = score
+			best_play = play
+
+	if not best_play.is_empty():
+		return best_play
 
 	# If we couldn't beat it normally, check if table has a 2 and try bombs
+	# This bomb logic is a special case and should still be considered if no other plays are found
 	if combo_type == Combination.Type.SINGLE or combo_type == Combination.Type.PAIR:
 		var first_card = table_combo[0] as Card
 		if first_card.is_two():
-			var bomb = find_lowest_beating_bomb(hand, table_combo)
+			var bomb = find_lowest_beating_bomb(hand, table_combo) # find_lowest_beating_bomb still useful for specific bomb logic
 			if bomb and not bomb.is_empty():
 				return bomb
 
@@ -63,6 +72,64 @@ static func decide_play(hand: Hand, game_state: GameState, is_first_turn: bool) 
 ## ============================================================================
 ## COMBO BEATING LOGIC
 ## ============================================================================
+
+## Assign a strategic score to a given play
+## Higher score means a better play.
+static func evaluate_play(play_cards: Array, hand: Hand) -> int:
+	var score = 0
+
+	# 1. Prioritize playing more cards (reduces hand size faster)
+	score += play_cards.size() * 100
+
+	# 2. Consider the strength of the play (higher strength is generally better)
+	score += Combination.get_strength(play_cards)
+
+	# 3. Penalize for cards remaining in hand (fewer cards left is better)
+	# This is a simplified way to encourage emptying the hand.
+	score -= (hand.get_card_count() - play_cards.size()) * 10
+
+	# TODO: Add more sophisticated scoring, e.g.,
+	# - Penalty for using high cards (2s, Aces) in weak plays
+	# - Bonus for emptying hand
+	# - Bonus for leaving a strong combo in hand
+
+	return score
+
+## Find all valid combinations from the hand that can beat the table combo
+static func find_all_beating_combos(hand: Hand, table_combo: Array) -> Array:
+	var beating_combos: Array = []
+
+	var all_singles = _find_all_singles(hand)
+	for combo in all_singles:
+		if Combination.beats(combo, table_combo):
+			beating_combos.append(combo)
+
+	var all_pairs = _find_all_pairs(hand)
+	for combo in all_pairs:
+		if Combination.beats(combo, table_combo):
+			beating_combos.append(combo)
+
+	var all_triples = _find_all_triples(hand)
+	for combo in all_triples:
+		if Combination.beats(combo, table_combo):
+			beating_combos.append(combo)
+
+	var all_quads = _find_all_quads(hand)
+	for combo in all_quads:
+		if Combination.beats(combo, table_combo):
+			beating_combos.append(combo)
+
+	var all_straights = _find_all_straights(hand)
+	for combo in all_straights:
+		if Combination.beats(combo, table_combo):
+			beating_combos.append(combo)
+
+	var all_consecutive_pairs = _find_all_consecutive_pairs(hand)
+	for combo in all_consecutive_pairs:
+		if Combination.beats(combo, table_combo):
+			beating_combos.append(combo)
+
+	return beating_combos
 
 ## Find the lowest valid combination that beats the table combo
 ## Delegates to specialized methods based on table combination type
@@ -210,6 +277,95 @@ static func find_lowest_beating_bomb(hand: Hand, table_combo: Array) -> Array:
 
 	return []
 
+## Find all possible quads (four of a kind) in the hand
+static func _find_all_quads(hand: Hand) -> Array:
+	var all_quads: Array = []
+	for rank in range(Card.Rank.THREE, Card.Rank.TWO + 1): # All ranks
+		var cards_of_rank = hand.get_cards_by_rank(rank)
+		if cards_of_rank.size() >= 4:
+			all_quads.append([cards_of_rank[0], cards_of_rank[1], cards_of_rank[2], cards_of_rank[3]])
+	return all_quads
+
+## Find all possible consecutive pairs (bombs) in the hand
+static func _find_all_consecutive_pairs(hand: Hand) -> Array:
+	var all_consecutive_pairs: Array = []
+	# Iterate through possible starting ranks (3 to King, as Ace/2 cannot start a 3-pair consecutive)
+	for start_rank in range(Card.Rank.THREE, Card.Rank.KING + 1):
+		# Try to build consecutive pairs of length 3 or more
+		for num_pairs in range(3, 7): # Max 6 pairs (12 cards), but 3-7 is reasonable range
+			var consecutive = try_build_consecutive_pairs(hand, start_rank, num_pairs)
+			if not consecutive.is_empty():
+				all_consecutive_pairs.append(consecutive)
+	return all_consecutive_pairs
+
+## Find all possible singles in the hand
+static func _find_all_singles(hand: Hand) -> Array:
+	var all_singles: Array = []
+	for card in hand.cards:
+		all_singles.append([card])
+	return all_singles
+
+## Find the best combination to play when the table is empty
+## Prioritizes straights > triples > pairs > lowest single
+static func find_best_opening_play(hand: Hand) -> Array:
+	var best_play: Array = []
+	var best_strength = -1
+	var best_type = Combination.Type.INVALID
+
+	# 1. Check for Straights
+	var all_straights = _find_all_straights(hand)
+	if not all_straights.is_empty():
+		# Sort straights by length (desc), then strength (desc)
+		all_straights.sort_custom(func(a, b):
+			if a.size() != b.size():
+				return a.size() > b.size() # Longest first
+			return Combination.get_strength(a) > Combination.get_strength(b) # Highest strength first
+		)
+		best_play = all_straights[0]
+		best_strength = Combination.get_strength(best_play)
+		best_type = Combination.Type.STRAIGHT
+
+	# 2. Check for Triples (only if no straights or if triple is "better" by some metric, for now just highest)
+	var all_triples = _find_all_triples(hand)
+	if not all_triples.is_empty():
+		# Sort triples by strength (desc)
+		all_triples.sort_custom(func(a, b):
+			return Combination.get_strength(a) > Combination.get_strength(b)
+		)
+		var current_best_triple = all_triples[0]
+		var current_triple_strength = Combination.get_strength(current_best_triple)
+
+		# If no straights, or if this triple is stronger than current best (unlikely for combo types)
+		# For now, just take if no straights found
+		if best_play.is_empty() or (best_type < Combination.Type.TRIPLE and current_triple_strength > best_strength):
+			best_play = current_best_triple
+			best_strength = current_triple_strength
+			best_type = Combination.Type.TRIPLE
+
+
+	# 3. Check for Pairs (only if no straights/triples or if pair is "better")
+	var all_pairs = _find_all_pairs(hand)
+	if not all_pairs.is_empty():
+		# Sort pairs by strength (desc)
+		all_pairs.sort_custom(func(a, b):
+			return Combination.get_strength(a) > Combination.get_strength(b)
+		)
+		var current_best_pair = all_pairs[0]
+		var current_pair_strength = Combination.get_strength(current_best_pair)
+
+		if best_play.is_empty() or (best_type < Combination.Type.PAIR and current_pair_strength > best_strength):
+			best_play = current_best_pair
+			best_strength = current_pair_strength
+			best_type = Combination.Type.PAIR
+
+	# 4. Fallback to Lowest Single
+	if best_play.is_empty():
+		var lowest = hand.get_lowest_card()
+		if lowest:
+			best_play = [lowest]
+
+	return best_play
+
 ## Attempt to build consecutive pairs starting from a given rank
 ## @param hand: The AI player's hand
 ## @param start_rank: Starting rank for the consecutive pairs
@@ -226,3 +382,34 @@ static func try_build_consecutive_pairs(hand: Hand, start_rank: int, num_pairs: 
 		pairs.append(cards[1])
 
 	return pairs
+
+## Find all possible straights in the hand
+static func _find_all_straights(hand: Hand) -> Array:
+	var all_straights: Array = []
+	# Iterate through possible lengths (from 4 up to hand size)
+	for length in range(4, hand.get_card_count() + 1):
+		# Iterate through possible starting ranks (3 to Ace)
+		for start_rank in range(Card.Rank.THREE, Card.Rank.TWO): # Up to Ace, as 2s cannot be in straights
+			var straight = try_build_straight(hand, start_rank, length)
+			if not straight.is_empty():
+				all_straights.append(straight)
+	return all_straights
+
+## Find all possible triples in the hand
+static func _find_all_triples(hand: Hand) -> Array:
+	var all_triples: Array = []
+	for rank in range(Card.Rank.THREE, Card.Rank.TWO + 1): # All ranks
+		var cards_of_rank = hand.get_cards_by_rank(rank)
+		if cards_of_rank.size() >= 3:
+			all_triples.append([cards_of_rank[0], cards_of_rank[1], cards_of_rank[2]])
+	return all_triples
+
+## Find all possible pairs in the hand
+static func _find_all_pairs(hand: Hand) -> Array:
+	var all_pairs: Array = []
+	for rank in range(Card.Rank.THREE, Card.Rank.TWO + 1): # All ranks
+		var cards_of_rank = hand.get_cards_by_rank(rank)
+		if cards_of_rank.size() >= 2:
+			all_pairs.append([cards_of_rank[0], cards_of_rank[1]])
+	return all_pairs
+

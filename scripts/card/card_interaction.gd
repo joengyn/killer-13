@@ -31,6 +31,8 @@ const RESET_ANIMATION_DURATION: float = 0.3  ## Duration for resetting effects
 
 ## If true, this card responds to player input (hover, click, drag)
 var is_player_card: bool = false
+## If true, this card can be moved out of the hand (clicked or dragged to play zone)
+var can_move_out_of_hand: bool = false
 ## If true, the card is currently being dragged
 var _is_being_dragged: bool = false
 ## Offset from cursor to card center during drag (maintains relative grab position)
@@ -106,9 +108,10 @@ func reset_hover_state() -> void:
 ## @param enabled: If true, enables interaction; if false, disables and resets all effects
 ## NOTE: Prefer direct assignment to is_player_card in most cases.
 ## Use this method when you need the full reset behavior (clears hover, drag, animations).
-func set_interactive(enabled: bool) -> void:
-	is_player_card = enabled
-	if not enabled:
+func set_interactive(can_drag_reorder: bool, can_move_out_of_hand_param: bool) -> void:
+	is_player_card = can_drag_reorder # is_player_card now controls general interaction like hover and reordering
+	can_move_out_of_hand = can_move_out_of_hand_param # New flag for moving cards out of hand
+	if not is_player_card: # If general interaction is disabled, reset all states
 		# Reset any active hover/drag state
 		_is_mouse_over = false
 		_is_being_dragged = false
@@ -155,7 +158,8 @@ func _on_click_area_input(_viewport: Node, event: InputEvent, _shape_idx: int):
 				_last_clicked_card = card_visual
 				_last_clicked_frame = current_frame
 
-				card_clicked.emit(card_visual)
+				if can_move_out_of_hand:
+					card_clicked.emit(card_visual)
 			_mouse_pressed = false
 		get_tree().root.set_input_as_handled()
 
@@ -166,7 +170,7 @@ func _unhandled_input(event: InputEvent):
 		if _mouse_pressed and not _is_being_dragged and is_player_card:
 			var current_global_mouse = get_viewport().get_canvas_transform().affine_inverse() * get_viewport().get_mouse_position()
 			var drag_distance = current_global_mouse.distance_to(_mouse_press_position)
-			if drag_distance > 5.0:  # Threshold to start drag (5 pixels)
+			if drag_distance > 5.0 and can_move_out_of_hand:  # Threshold to start drag (5 pixels)
 				_start_drag(_mouse_press_position)
 
 		if _is_being_dragged:

@@ -185,6 +185,10 @@ static func beats(combo1: Array, combo2: Array) -> bool:
 
 	# Same type, compare strength
 	if type1 == type2:
+		# For straights and consecutive pairs, size must also be equal
+		if type1 == Type.STRAIGHT or type1 == Type.CONSECUTIVE_PAIRS:
+			if combo1.size() != combo2.size():
+				return false
 		return get_strength(combo1) > get_strength(combo2)
 
 	# Different types: only bombs can beat non-bombs
@@ -225,9 +229,9 @@ static func type_to_string(combo_type: Type) -> String:
 ## @param cards: Array of Card objects
 ## @return: String representation with card symbols
 static func combo_to_string(cards: Array) -> String:
-	var result = ""
+	var inner_result = ""
 	for i in range(cards.size()):
-		result += (cards[i] as Card)._to_string()
+		inner_result += (cards[i] as Card)._to_string()
 		if i < cards.size() - 1:
-			result += " "
-	return result
+			inner_result += " "
+	return "[" + inner_result + "]"

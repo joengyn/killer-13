@@ -29,6 +29,14 @@ signal invalid_play_attempted(error_message: String)
 signal ai_turn_started(player_index: int)
 ## Emitted after AI decides to play or pass, before game logic executes
 signal ai_decision_made(player_index: int, cards_to_play: Array)
+## Emitted when the game is reset
+signal game_reset
+## Emitted when player 0's hand changes (logical cards)
+signal player_0_hand_updated(cards: Array[Card])
+## Emitted when player 0's attack zone changes (logical cards)
+signal player_0_attack_zone_updated(cards: Array[Card])
+## Emitted when player 0's set zone changes (logical cards)
+signal player_0_set_zone_updated(cards: Array[Card])
 
 ## The deck of 52 cards
 var deck: Deck
@@ -45,11 +53,7 @@ var game_won: bool = false  ## True if someone has won
 var winner: int = -1  ## Index of winning player (-1 if no winner yet)
 var first_turn_of_game: bool = true  ## True only on first turn (3♠ required)
 
-## Visual card state tracking for player 0 (human player)
-## Tracks which visual card nodes are in which zone (source of truth for card locations)
-var player_visual_cards_in_hand: Array[Node] = []  ## Cards in PlayerHand
-var player_visual_cards_in_atk_zone: Array[Node] = []  ## Cards in PlayZone attack area (being played)
-var player_visual_cards_in_set_zone: Array[Node] = []  ## Cards committed on table (set)
+
 
 func _ready():
 	# GameManager initialization is handled by GameScreen.animate_deal_sequence()
@@ -70,6 +74,9 @@ func setup_game() -> void:
 	# Create hands with the dealt cards
 	for i in range(4):
 		players.append(Hand.new(dealt_cards[i]))
+
+	# Emit signal for player 0's initial hand
+	player_0_hand_updated.emit(players[0].cards)
 
 	# Initialize game state for 4 players
 	game_state = GameState.new()
@@ -220,16 +227,22 @@ func _execute_play(cards: Array[Card]) -> void:
 
 	# Remove cards from player's hand
 	player_hand.remove_cards(cards)
+	if player_idx == 0:
+		player_0_hand_updated.emit(player_hand.cards)
 
 	# Update game state
 	game_state.mark_player_played()
+	if player_idx == 0:
+		player_0_attack_zone_updated.emit(cards) # Cards are now logically in the attack zone
 	game_state.set_table_combo(cards)
+	if player_idx == 0:
+		player_0_set_zone_updated.emit(cards) # Cards are now logically in the set zone
 
 	player_played.emit(player_idx, cards, is_set_play)
 
 	# Check if player won
 	if player_hand.is_empty():
-		_end_game(player_idx)
+		await _end_game(player_idx)
 		return
 
 	# Mark that first turn is complete
@@ -240,6 +253,8 @@ func _execute_play(cards: Array[Card]) -> void:
 ## Internal: Advance to the next player
 func _advance_turn() -> void:
 	"""Move to next player, execute AI if needed"""
+	if not is_game_running: # Stop advancing turns if game has ended
+		return
 	game_state.next_player()
 	var next_player = game_state.current_player
 
@@ -253,18 +268,15 @@ func _advance_turn() -> void:
 ## Internal: Execute AI player's turn
 func _execute_ai_turn() -> void:
 	"""AI decides what to do and executes turn"""
+	if not is_game_running: # Stop AI if game has ended
+		return
 	var player_idx = game_state.current_player
 	var hand = players[player_idx]
 
 	# Emit signal for GameScreen to start visual "hand up" animation
 	ai_turn_started.emit(player_idx)
 	# Await GameScreen to complete the visual animation and initial delay
-	var game_screen_node = get_tree().get_first_node_in_group("game_screen")
-	if game_screen_node:
-		await game_screen_node.ai_visual_ready
-	else:
-		push_error("GameScreen node not found for AI visual ready signal. Adding fallback delay.")
-		await get_tree().create_timer(1.0).timeout
+	await get_tree().create_timer(1.0).timeout
 
 
 	# Safety check: Skip if this player has already passed
@@ -299,11 +311,7 @@ func _execute_ai_turn() -> void:
 		should_advance_turn_after_await = true # We need to advance turn after await
 
 	# Await GameScreen to complete the visual action (card movement/pass label) and delay
-	if game_screen_node:
-		await game_screen_node.ai_action_complete
-	else:
-		push_error("GameScreen node not found for AI action complete signal. Adding fallback delay.")
-		await get_tree().create_timer(1.0).timeout
+	await get_tree().create_timer(1.0).timeout
 
 	if should_advance_turn_after_await:
 		_advance_turn()
@@ -325,6 +333,9 @@ func _end_game(winner_idx: int) -> void:
 	game_won = true
 	winner = winner_idx
 
+	# Wait for visual card animations to complete before showing game over modal
+	await get_tree().create_timer(0.4).timeout
+
 	game_ended.emit(winner_idx)
 
 
@@ -343,6 +354,7 @@ func reset_game():
 	current_game_started = false
 	is_game_running = false
 	setup_game()
+	game_reset.emit()
 
 ## Return all player hands
 func get_players() -> Array[Hand]:
@@ -351,88 +363,3 @@ func get_players() -> Array[Hand]:
 ## Return current game state
 func get_current_state() -> GameState:
 	return game_state
-
-
-## ============================================================================
-## VISUAL CARD STATE MANAGEMENT (Player 0 only)
-## ============================================================================
-## These methods track which visual card nodes are in which zone
-## GameManager is the source of truth for card locations
-
-## Get all visual card nodes currently in player's hand
-## @return: Array of Node (CardVisual) in hand zone
-func get_player_hand_cards() -> Array[Node]:
-	return player_visual_cards_in_hand.duplicate()
-
-
-## Get all visual card nodes in attack zone (cards player is attempting to play)
-## @return: Array of Node (CardVisual) in atk zone
-func get_player_atk_cards() -> Array[Node]:
-	return player_visual_cards_in_atk_zone.duplicate()
-
-## Get all visual card nodes in set zone (committed to table)
-## @return: Array of Node (CardVisual) in set zone
-func get_player_set_cards() -> Array[Node]:
-	return player_visual_cards_in_set_zone.duplicate()
-
-## Determine which zone a visual card is currently in
-## @param card: The visual card Node to check
-## @return: String: 'hand', 'atk', 'set', or 'unknown'
-func get_card_location(card: Node) -> String:
-	if card in player_visual_cards_in_hand:
-		return "hand"
-	elif card in player_visual_cards_in_atk_zone:
-		return "atk"
-	elif card in player_visual_cards_in_set_zone:
-		return "set"
-	else:
-		return "unknown"
-
-
-## Move a visual card from hand zone to attack zone
-## @param card: The visual card Node to move
-## @return: True if successful, false if card wasn't in hand
-func move_card_to_atk_zone(card: Node) -> bool:
-	if card not in player_visual_cards_in_hand:
-		push_warning("Card not in hand, cannot move to atk zone")
-		return false
-
-	player_visual_cards_in_hand.erase(card)
-	player_visual_cards_in_atk_zone.append(card)
-	return true
-
-
-## Move a visual card from attack zone back to hand zone
-## @param card: The visual card Node to move
-## @return: True if successful, false if card wasn't in atk zone
-func move_card_to_hand(card: Node) -> bool:
-	if card not in player_visual_cards_in_atk_zone:
-		push_warning("Card not in atk zone, cannot move to hand")
-		return false
-
-	player_visual_cards_in_atk_zone.erase(card)
-	player_visual_cards_in_hand.append(card)
-	return true
-
-
-## Commit all attack zone cards to set zone (called when Play succeeds)
-## This finalizes the play - cards are now on the table
-func commit_atk_cards_to_set() -> void:
-	for card in player_visual_cards_in_atk_zone:
-		player_visual_cards_in_set_zone.append(card)
-	player_visual_cards_in_atk_zone.clear()
-
-
-## Clear all visual card tracking (called when starting a new game/deal)
-func clear_player_visual_cards() -> void:
-	player_visual_cards_in_hand.clear()
-	player_visual_cards_in_atk_zone.clear()
-	player_visual_cards_in_set_zone.clear()
-
-
-## Register a visual card node as being in player's hand
-## Called during dealing when cards are created
-## @param card: The visual card Node to register
-func add_card_to_player_hand(card: Node) -> void:
-	if card not in player_visual_cards_in_hand:
-		player_visual_cards_in_hand.append(card)

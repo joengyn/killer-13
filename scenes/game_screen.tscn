@@ -1,4 +1,4 @@
-[gd_scene load_steps=8 format=3 uid="uid://cmnnbe4ivggmy"]
+[gd_scene load_steps=9 format=3 uid="uid://cmnnbe4ivggmy"]
 
 [ext_resource type="Script" uid="uid://bavh623wcfnsw" path="res://scripts/game_screen.gd" id="1_85ytm"]
 [ext_resource type="PackedScene" uid="uid://824qy16dmi7r" path="res://scenes/deck.tscn" id="3_3uriw"]
@@ -7,6 +7,7 @@
 [ext_resource type="PackedScene" uid="uid://2rr0pgluv8ba" path="res://scenes/cpu_hand.tscn" id="6_cpu_hand"]
 [ext_resource type="PackedScene" uid="uid://b5w7p2j3g2j3h" path="res://scenes/round_tracker.tscn" id="7_round_tracker"]
 [ext_resource type="Theme" uid="uid://ddd872xm0x3ui" path="res://assets/theme.tres" id="8_theme"]
+[ext_resource type="LabelSettings" uid="uid://d2x7y8z9a1b2c" path="res://assets/game_over_label_settings.tres" id="9_label_settings"]
 
 [node name="GameScreen" type="Node2D"]
 script = ExtResource("1_85ytm")
@@ -26,10 +27,10 @@ mouse_filter = 2
 layout_mode = 0
 anchor_left = 0.5
 anchor_right = 0.5
-offset_left = -75.0
-offset_top = 900.0
-offset_right = 75.0
-offset_bottom = 978.0
+offset_left = -81.5
+offset_top = 745.0
+offset_right = 81.5
+offset_bottom = 823.0
 grow_horizontal = 2
 theme = ExtResource("8_theme")
 text = "Start"
@@ -102,20 +103,49 @@ vertical_alignment = 1
 [node name="PlayButton" type="Button" parent="CanvasLayer/UIContainer"]
 layout_mode = 0
 offset_left = 493.0
-offset_top = 495.0
+offset_top = 745.0
 offset_right = 643.0
-offset_bottom = 573.0
+offset_bottom = 823.0
 theme = ExtResource("8_theme")
 text = "Play"
 
 [node name="PassButton" type="Button" parent="CanvasLayer/UIContainer"]
 layout_mode = 0
 offset_left = 1275.0
-offset_top = 495.0
+offset_top = 745.0
 offset_right = 1430.0
-offset_bottom = 573.0
+offset_bottom = 823.0
 theme = ExtResource("8_theme")
 text = "Pass"
+
+[node name="GameOverModal" type="PanelContainer" parent="CanvasLayer/UIContainer"]
+visible = false
+layout_mode = 1
+anchors_preset = 7
+anchor_left = 0.5
+anchor_top = 1.0
+anchor_right = 0.5
+anchor_bottom = 1.0
+offset_left = -150.0
+offset_top = -570.0
+offset_right = 150.0
+offset_bottom = -430.0
+grow_horizontal = 2
+grow_vertical = 0
+theme = ExtResource("8_theme")
+
+[node name="GameOverLabel" type="Label" parent="CanvasLayer/UIContainer/GameOverModal"]
+layout_mode = 2
+size_flags_vertical = 6
+text = "YOU WIN!"
+label_settings = ExtResource("9_label_settings")
+horizontal_alignment = 1
+vertical_alignment = 1
+
+[node name="PlayAgainButton" type="Button" parent="CanvasLayer/UIContainer/GameOverModal"]
+layout_mode = 2
+size_flags_vertical = 6
+text = "Play Again"
 
 [node name="RoundTracker" parent="CanvasLayer/UIContainer" instance=ExtResource("7_round_tracker")]
 layout_mode = 1
@@ -132,7 +162,7 @@ grow_horizontal = 2
 position = Vector2(960, 540)
 
 [node name="PlayZone" parent="." instance=ExtResource("5_play_zone")]
-position = Vector2(960, 540)
+position = Vector2(980, 540)
 
 [node name="PlayerHand" parent="." instance=ExtResource("4_player_hand")]
 position = Vector2(960, 1010)
@@ -148,3 +178,5 @@ rotation = 1.5708
 [node name="CPUHandRight" parent="." instance=ExtResource("6_cpu_hand")]
 position = Vector2(2020, 540)
 rotation = -1.5708
+
+[connection signal="pressed" from="CanvasLayer/UIContainer/GameOverModal/PlayAgainButton" to="." method="_on_PlayAgainButton_pressed"]

@@ -22,6 +22,8 @@ var _connected_cards: Array[Node] = []
 @onready var _cpu_left_passed_label: Label = $CanvasLayer/UIContainer/CPULeftPassedLabel
 @onready var _cpu_right_passed_label: Label = $CanvasLayer/UIContainer/CPURightPassedLabel
 @onready var _invalid_play_label: Label = $CanvasLayer/UIContainer/InvalidPlayLabel # New label for invalid plays
+@onready var _game_over_modal: PanelContainer = $CanvasLayer/UIContainer/GameOverModal
+@onready var _game_over_label: Label = $CanvasLayer/UIContainer/GameOverModal/GameOverLabel
 
 signal ai_visual_ready(player_index: int) # Emitted by GameScreen to GameManager when AI hand visual preparation is complete.
 signal ai_action_complete(player_index: int) # Emitted by GameScreen to GameManager when AI action visuals (play/pass, hand return) are complete.
@@ -116,9 +118,6 @@ func _start_game_immediately() -> void:
 	# First, make sure GameManager has set up the game
 	_game_manager.setup_game()
 
-	# Clear visual card state for fresh deal
-	_game_manager.clear_player_visual_cards()
-
 	# Get player hands from GameManager
 	var players = _game_manager.players
 	if not players or players.size() < 4:
@@ -128,10 +127,6 @@ func _start_game_immediately() -> void:
 	# Populate player's hand
 	if _player_hand and _player_hand.has_method("clear_and_populate"):
 		_player_hand.clear_and_populate(players[0].cards)
-		# Register visual cards with GameManager
-		for card_visual in _player_hand.get_children():
-			if card_visual is Node2D and card_visual.has_method("set_card"):
-				_game_manager.add_card_to_player_hand(card_visual)
 
 	# Populate CPU hands
 	# Player 1 = CPU Left, Player 2 = CPU Top, Player 3 = CPU Right
@@ -177,9 +172,6 @@ func animate_deal_sequence() -> void:
 	"""Animate dealing 13 cards to each of 4 players (52 total)"""
 	# First, make sure GameManager has set up the game
 	_game_manager.setup_game()
-
-	# Clear visual card state for fresh deal
-	_game_manager.clear_player_visual_cards()
 
 	# Reset card tracking for this deal
 	_cards_dealt = 0
@@ -249,9 +241,7 @@ func _populate_dealt_cards(num_cards_dealt: int) -> void:
 	if _player_hand and _player_hand.has_method("add_card"):
 		for i in range(_prev_player_counts[0], player_counts[0]):
 			var card_visual = _player_hand.add_card(players[0].cards[i])
-			# Register with GameManager so it knows about the visual card
-			if _game_manager and card_visual:
-				_game_manager.add_card_to_player_hand(card_visual)
+
 
 	# Add new cards to CPU hands if count increased
 	for player_idx in range(1, 4):
@@ -331,7 +321,7 @@ func _on_play_pressed() -> void:
 		# Play was valid - animate atk cards to set cards
 		await _play_zone.commit_atk_to_set()
 		# Update GameManager state: atk cards are now set cards
-		GameManager.commit_atk_cards_to_set()
+
 		# Emit signal that card play visuals are complete for human player
 		card_play_visual_complete.emit(0, card_data)
 		# Advance turn after human player's successful play
@@ -348,7 +338,7 @@ func _on_play_pressed() -> void:
 func _on_pass_pressed() -> void:
 	"""Handle Pass button press - return atk cards to hand and pass turn"""
 	# Return all atk cards back to hand (use GameManager as source of truth)
-	var atk_cards = GameManager.get_player_atk_cards()
+	var atk_cards = _play_zone.get_atk_cards()
 	for card in atk_cards:
 		_move_card_to_hand(card)
 
@@ -365,13 +355,10 @@ func _on_pass_pressed() -> void:
 
 func _on_card_clicked(card_visual: Node) -> void:
 	"""Handle when a card is clicked - toggle between hand and play zone"""
-	# Query GameManager for authoritative card location
-	var card_location = GameManager.get_card_location(card_visual)
-
-	if card_location == "hand":
+	if _player_hand.has_card(card_visual):
 		# Move from hand to play zone
 		_move_card_to_play_zone(card_visual)
-	elif card_location == "atk":
+	elif _play_zone.has_atk_card(card_visual):
 		# Move from play zone back to hand
 		_move_card_to_hand(card_visual)
 	else:
@@ -394,10 +381,8 @@ func _on_card_drag_ended(card_visual: Node) -> void:
 	"""Handle when a card drag ends - route to appropriate zone"""
 	_dragging_card = null
 
-	# Query GameManager for authoritative card location
-	var card_location = GameManager.get_card_location(card_visual)
-
-	if card_location == "hand":
+	if _player_hand.has_card(card_visual):
+		# Card was in hand, check if it was dragged out
 		# Check if PlayerHand version handles bounds checking by checking for the property
 		if _player_hand and "handles_bounds_checking" in _player_hand:
 			# Use the new system where PlayerHand handles hand→play_zone movement
@@ -419,8 +404,8 @@ func _on_card_drag_ended(card_visual: Node) -> void:
 			if not hand_bounds.has_point(card_local_pos):
 				# Card moved outside hand - send to play zone as atk card
 				_move_card_to_play_zone(card_visual)
-	elif card_location == "atk":
-		# Check if card should be returned to hand (either inside hand bounds or outside play zone)
+	elif _play_zone.has_atk_card(card_visual):
+		# Card was in attack zone, check if it should return to hand (either inside hand bounds or outside play zone)
 		var hand_bounds = _player_hand._get_hand_bounds()
 		var play_bounds = _play_zone._get_bounds_rect()
 
@@ -446,9 +431,7 @@ func _on_card_dragged_out_from_hand(card_visual: Node) -> void:
 	# Ensure the card is not in the drag state anymore
 	_dragging_card = null
 
-	# Check if this card is currently in the hand (has "hand" location)
-	var card_location = GameManager.get_card_location(card_visual)
-	if card_location == "hand":
+	if _player_hand.has_card(card_visual):
 		# Move the card to play zone as an atk card
 		_move_card_to_play_zone(card_visual)
 
@@ -462,9 +445,7 @@ func _on_card_returned_to_hand(card_visual: Node) -> void:
 
 func _move_card_to_play_zone(card: Node) -> void:
 	"""Move a card from hand to play zone as an atk card"""
-	# Update GameManager state (source of truth)
-	if not GameManager.move_card_to_atk_zone(card):
-		return
+
 
 	# CRITICAL: Remove from PlayerHand's local tracking array
 	# Otherwise the hand thinks the card is still there when arranging
@@ -494,9 +475,7 @@ func _move_card_to_play_zone(card: Node) -> void:
 
 func _move_card_to_hand(card: Node) -> void:
 	"""Move a card from play zone atk cards back to hand"""
-	# Update GameManager state (source of truth)
-	if not GameManager.move_card_to_hand(card):
-		return
+
 
 	# Remove from play zone atk cards (this handles reparenting and scaling)
 	_play_zone.remove_atk_card(card, _player_hand)
@@ -528,12 +507,12 @@ func _move_card_to_hand(card: Node) -> void:
 
 func get_cards_in_hand() -> Array:
 	"""Get all cards currently in hand"""
-	return GameManager.get_player_hand_cards()
+	return _player_hand.get_cards()
 
 
 func get_cards_in_play() -> Array[Node]:
 	"""Get all atk cards currently being played"""
-	return GameManager.get_player_atk_cards()
+	return _play_zone.get_atk_cards()
 
 
 func _on_turn_changed(player_idx: int) -> void:
@@ -543,6 +522,13 @@ func _on_turn_changed(player_idx: int) -> void:
 
 	# Don't enable buttons if player has already passed
 	var has_passed = _game_manager.has_player_passed() if _game_manager else false
+
+	# Enable/disable player card interaction
+	var can_interact_with_cards = is_player_turn and not has_passed
+	if _player_hand:
+		_player_hand.set_cards_interactive(can_interact_with_cards)
+	if _play_zone:
+		_play_zone.set_cards_interactive(can_interact_with_cards)
 
 	if _play_button:
 		_play_button.disabled = !is_player_turn or has_passed
@@ -676,6 +662,27 @@ func _on_round_started() -> void:
 func _on_game_ended(winner_idx: int) -> void:
 	"""Called when game ends"""
 	_hide_action_buttons()
+	if _player_hand:
+		_player_hand.set_cards_interactive(false)
+	if _play_zone:
+		_play_zone.set_cards_interactive(false)
+	if _game_over_modal and _game_over_label:
+		_game_over_modal.visible = true
+		if winner_idx == 0: # Player 0 is the human player
+			_game_over_label.text = "YOU WIN!"
+		else:
+			_game_over_label.text = "YOU LOSE!"
+
+func _on_PlayAgainButton_pressed() -> void:
+	"""Called when the 'Play Again' button is pressed"""
+	if _game_over_modal:
+		_game_over_modal.visible = false
+	
+	# Reset the game through the GameManager
+	if _game_manager and _game_manager.has_method("reset_game"):
+		_game_manager.reset_game()
+	else:
+		push_error("GameManager does not have a 'reset_game' method.")
 
 
 func _on_invalid_play_attempted(_error_message: String) -> void:
@@ -710,9 +717,97 @@ func _connect_game_manager_signals() -> void:
 		_game_manager.game_ended.connect(_on_game_ended)
 	if not _game_manager.invalid_play_attempted.is_connected(_on_invalid_play_attempted):
 		_game_manager.invalid_play_attempted.connect(_on_invalid_play_attempted)
+	if not _game_manager.game_reset.is_connected(_on_game_reset):
+		_game_manager.game_reset.connect(_on_game_reset)
 	
 	# Connect to AI orchestration signals
 	if not _game_manager.ai_turn_started.is_connected(_on_ai_turn_started):
 		_game_manager.ai_turn_started.connect(_on_ai_turn_started)
 	if not _game_manager.ai_decision_made.is_connected(_on_ai_decision_made):
 		_game_manager.ai_decision_made.connect(_on_ai_decision_made)
+	if not _game_manager.player_0_hand_updated.is_connected(_on_player_0_hand_updated):
+		_game_manager.player_0_hand_updated.connect(_on_player_0_hand_updated)
+	if not _game_manager.player_0_attack_zone_updated.is_connected(_on_player_0_attack_zone_updated):
+		_game_manager.player_0_attack_zone_updated.connect(_on_player_0_attack_zone_updated)
+	if not _game_manager.player_0_set_zone_updated.is_connected(_on_player_0_set_zone_updated):
+		_game_manager.player_0_set_zone_updated.connect(_on_player_0_set_zone_updated)
+
+func _on_game_reset() -> void:
+	"""Handles the visual reset of the game screen when GameManager signals a game reset."""
+	# Re-enable player interaction
+	if _player_hand:
+		_player_hand.set_cards_interactive(true)
+	if _play_zone:
+		_play_zone.set_cards_interactive(true)
+	
+	# Clear visual cards from play zone
+	if _play_zone and _play_zone.has_method("clear_all_cards"):
+		_play_zone.clear_all_cards()
+	
+	# Clear visual cards from player hand
+	if _player_hand and _player_hand.has_method("clear_all_cards"):
+		_player_hand.clear_all_cards()
+	
+	# Clear visual cards from CPU hands
+	for cpu_hand in _cpu_hands:
+		if cpu_hand and cpu_hand.has_method("clear_all_cards"):
+			cpu_hand.clear_all_cards()
+	
+	# Make the deck visible again
+	if _deck:
+		_deck.visible = true
+	
+	# Make the start button visible again
+	if _start_button:
+		_start_button.visible = true
+	
+	# Hide the game over modal
+	if _game_over_modal:
+		_game_over_modal.visible = false
+	
+	# Hide all "PASSED" labels
+	if _player_passed_label:
+		_player_passed_label.visible = false
+	if _cpu_top_passed_label:
+		_cpu_top_passed_label.visible = false
+	if _cpu_left_passed_label:
+		_cpu_left_passed_label.visible = false
+	if _cpu_right_passed_label:
+		_cpu_right_passed_label.visible = false
+	
+	# Hide the invalid play label
+	if _invalid_play_label:
+		_invalid_play_label.visible = false
+	
+	# Hide the RoundTracker
+	var round_tracker_node = get_node_or_null("CanvasLayer/UIContainer/RoundTracker")
+	if round_tracker_node:
+		round_tracker_node.visible = false
+	
+	# Disconnect card listeners as cards are cleared
+	_connected_cards.clear()
+	_dragging_card = null
+	
+	# Reset card tracking for dealing
+	_cards_dealt = 0
+	_prev_player_counts = [0, 0, 0, 0]
+
+func _on_player_0_hand_updated(cards: Array[Card]) -> void:
+	"""Handler for GameManager.player_0_hand_updated signal - updates player 0's visual hand."""
+	if _player_hand and _player_hand.has_method("clear_and_populate"):
+		_player_hand.clear_and_populate(cards)
+		_connect_card_listeners(_player_hand.get_children()) # Reconnect listeners for new cards
+
+func _on_player_0_attack_zone_updated(cards: Array[Card]) -> void:
+	"""Handler for GameManager.player_0_attack_zone_updated signal - updates player 0's visual attack zone."""
+	# This signal is emitted when player 0 successfully plays cards.
+	# The visual update (moving cards from hand to attack zone) is already handled by _on_play_pressed
+	# and _move_card_to_play_zone. This signal serves as a confirmation/trigger for other UI elements if needed.
+	pass
+
+func _on_player_0_set_zone_updated(cards: Array[Card]) -> void:
+	"""Handler for GameManager.player_0_set_zone_updated signal - updates player 0's visual set zone."""
+	# This signal is emitted when player 0 successfully plays cards and they are committed to the set.
+	# The visual update (moving cards from attack zone to set zone) is already handled by _on_play_pressed
+	# and _play_zone.commit_atk_to_set(). This signal serves as a confirmation/trigger for other UI elements if needed.
+	pass

@@ -1,0 +1,8 @@
+[gd_resource type="LabelSettings" format=3]
+
+[ext_resource type="FontFile" uid="uid://cugnpp2dnvw3s" path="res://assets/rainyhearts.ttf" id="1_font"]
+
+[resource]
+font = ExtResource("1_font")
+font_size = 40
+font_color = Color(0.95, 0.95, 0.95, 1)

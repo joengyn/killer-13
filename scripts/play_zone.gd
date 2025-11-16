@@ -15,6 +15,7 @@ var CARD_WIDTH: float:
 var CARD_HEIGHT: float:
 	get: return Constants.CARD_HEIGHT
 const CARD_GAP: float = 20.0  # Gap between cards
+const MAX_ZONE_WIDTH: float = 1604.0 # Max width for cards in the zone, based on 13 cards in hand
 var CARD_SPACING: float:
 	get: return CARD_WIDTH + CARD_GAP
 
@@ -158,36 +159,58 @@ func _arrange_cards() -> void:
 	_arrange_atk_cards()
 
 
+func _get_card_arrangement_params(card_list: Array[Node]) -> Dictionary:
+	var card_count = card_list.size()
+	var card_width = CARD_WIDTH
+
+	var effective_card_spacing: float
+	if card_count == 1:
+		effective_card_spacing = 0.0
+	else:
+		var default_total_width = (card_count - 1) * CARD_SPACING + card_width
+		if default_total_width > MAX_ZONE_WIDTH:
+			effective_card_spacing = (MAX_ZONE_WIDTH - card_width) / (card_count - 1)
+		else:
+			effective_card_spacing = CARD_SPACING
+
+	var total_width = (card_count - 1) * effective_card_spacing + card_width
+	var start_x = -(total_width / 2.0) + (card_width / 2.0)
+
+	return {
+		"effective_card_spacing": effective_card_spacing,
+		"total_width": total_width,
+		"start_x": start_x
+	}
+
+
 func _arrange_set_cards() -> void:
-	"""Arrange set cards in a straight horizontal line, centered"""
-	if _set_cards.size() == 0:
+	"""Arrange set cards in a straight horizontal line, centered with responsive spacing"""
+	if _set_cards.is_empty():
 		return
 
-	var card_count = _set_cards.size()
-	# Calculate total width and center offset
-	var total_width = (card_count - 1) * CARD_SPACING
-	var start_x = -total_width / 2.0
+	var params = _get_card_arrangement_params(_set_cards)
+	var start_x = params.start_x
+	var effective_card_spacing = params.effective_card_spacing
 
-	for idx in range(card_count):
+	for idx in range(_set_cards.size()):
 		var child = _set_cards[idx]
-		var x = start_x + (idx * CARD_SPACING)
+		var x = start_x + (idx * effective_card_spacing)
 		child.position = Vector2(x, 0)
 		child.z_index = SET_Z_INDEX
 
 
 func _arrange_atk_cards() -> void:
-	"""Arrange atk cards offset above the set cards"""
-	if _atk_cards.size() == 0:
+	"""Arrange atk cards offset above the set cards with responsive spacing"""
+	if _atk_cards.is_empty():
 		return
 
-	var card_count = _atk_cards.size()
-	# Calculate total width and center offset (same as set cards)
-	var total_width = (card_count - 1) * CARD_SPACING
-	var start_x = -total_width / 2.0
+	var params = _get_card_arrangement_params(_atk_cards)
+	var start_x = params.start_x
+	var effective_card_spacing = params.effective_card_spacing
 
-	for idx in range(card_count):
+	for idx in range(_atk_cards.size()):
 		var child = _atk_cards[idx]
-		var x = start_x + (idx * CARD_SPACING)
+		var x = start_x + (idx * effective_card_spacing)
 		# Position offset up and to the left
 		child.position = Vector2(x, 0) + ATK_OFFSET
 		# z_index increases with index (later cards render on top)
@@ -205,26 +228,26 @@ func _arrange_atk_cards() -> void:
 
 func _get_bounds_rect() -> Rect2:
 	"""Calculate the bounding rectangle of the play zone (includes both set and atk cards)"""
-	var total_cards = _set_cards.size() + _atk_cards.size()
+	# The play zone's width is defined by MAX_ZONE_WIDTH, centered around the PlayZone's origin.
+	var zone_width = MAX_ZONE_WIDTH
+	var half_zone_width = zone_width / 2.0
 
-	if total_cards == 0:
-		# Return a default empty bounds centered at origin
-		return Rect2(Vector2(-CARD_WIDTH / 2.0, -CARD_HEIGHT / 2.0), Vector2(CARD_WIDTH, CARD_HEIGHT))
+	# The height needs to accommodate both set cards (at y=0) and atk cards (offset by ATK_OFFSET.y)
+	# Assuming set cards are centered vertically at y=0, their range is -CARD_HEIGHT/2 to CARD_HEIGHT/2
+	# Atk cards are offset by ATK_OFFSET.y, so their range is ATK_OFFSET.y - CARD_HEIGHT/2 to ATK_OFFSET.y + CARD_HEIGHT/2
+	var set_card_min_y = -CARD_HEIGHT / 2.0
+	var set_card_max_y = CARD_HEIGHT / 2.0
+	var atk_card_min_y = ATK_OFFSET.y - CARD_HEIGHT / 2.0
+	var atk_card_max_y = ATK_OFFSET.y + CARD_HEIGHT / 2.0
 
-	# Use the larger count for width calculation
-	var card_count = max(_set_cards.size(), _atk_cards.size())
+	var min_y = min(set_card_min_y, atk_card_min_y)
+	var max_y = max(set_card_max_y, atk_card_max_y)
+	var zone_height = max_y - min_y
 
-	# Total width of the cards in play
-	var total_width = (card_count - 1) * CARD_SPACING + CARD_WIDTH
-	var half_width = total_width / 2.0
-
-	# Account for atk card offset (they extend upward and leftward)
-	var atk_offset_y = ATK_OFFSET.y if _atk_cards.size() > 0 else 0.0
-
-	# Create bounds rect centered at origin with padding for interaction
+	# Create bounds rect centered at origin
 	var bounds = Rect2(
-		Vector2(-half_width, atk_offset_y - CARD_HEIGHT / 2.0),
-		Vector2(total_width, CARD_HEIGHT * 2)  # Extra height to account for atk cards above
+		Vector2(-half_zone_width, min_y),
+		Vector2(zone_width, zone_height)
 	)
 
 	return bounds
@@ -233,6 +256,10 @@ func _get_bounds_rect() -> Rect2:
 func get_atk_cards() -> Array[Node]:
 	"""Return array of atk cards"""
 	return _atk_cards.duplicate()
+
+func has_atk_card(card_visual: Node) -> bool:
+	"""Checks if the given visual card is currently in the attack zone."""
+	return card_visual in _atk_cards
 
 
 func clear_atk_cards() -> void:
@@ -293,15 +320,14 @@ func commit_atk_to_set() -> void:
 
 func _get_set_position(index: int) -> Vector2:
 	"""Calculate the position for a set card at the given index"""
-	if _set_cards.size() == 0 and _atk_cards.size() == 0:
+	if _atk_cards.is_empty():
 		return Vector2.ZERO
 
-	# Use the count from atk cards (they're about to become set cards)
-	var card_count = _atk_cards.size()
-	var total_width = (card_count - 1) * CARD_SPACING
-	var start_x = -total_width / 2.0
+	var params = _get_card_arrangement_params(_atk_cards)
+	var start_x = params.start_x
+	var effective_card_spacing = params.effective_card_spacing
 
-	var x = start_x + (index * CARD_SPACING)
+	var x = start_x + (index * effective_card_spacing)
 	return Vector2(x, 0)
 
 
@@ -325,16 +351,17 @@ func reset_to_placeholder() -> void:
 			placeholder.set_show_back(true)
 
 		# Position in center
-		placeholder.position = Vector2(0, 0)
+		# placeholder.position = Vector2(0, 0)
 		placeholder.z_index = SET_Z_INDEX
 
 		# Ensure interactions are disabled
 		var card_interaction = placeholder.get_node_or_null("Interaction")
 		if card_interaction:
 			card_interaction.is_player_card = false
-
+	
 	# Clear atk cards (shouldn't have any, but just in case)
 	_atk_cards.clear()
+	_arrange_cards()
 
 
 func shake_atk_cards() -> void:
@@ -356,3 +383,25 @@ func shake_atk_cards() -> void:
 		
 		# Return to original position
 		tween.tween_property(card, "position", original_pos, shake_duration)
+
+func set_cards_interactive(interactive: bool) -> void:
+	for card_visual in _atk_cards:
+		var interaction = card_visual.get_node_or_null("Interaction")
+		if interaction:
+			# Atk cards should be fully interactive (reorderable and movable) when 'interactive' is true
+			interaction.set_interactive(interactive, interactive)
+	for card_visual in _set_cards:
+		var interaction = card_visual.get_node_or_null("Interaction")
+		if interaction:
+			# Set cards are never interactive for the player
+			interaction.set_interactive(false, false)
+
+func clear_all_cards() -> void:
+	"""Removes all cards (set and attack) from the play zone."""
+	for card in _set_cards:
+		card.queue_free()
+	_set_cards.clear()
+
+	for card in _atk_cards:
+		card.queue_free()
+	_atk_cards.clear()
