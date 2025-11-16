@@ -8,9 +8,7 @@ signal card_dragged_out(card_visual: Node)
 ## Emitted when a card drag starts
 signal card_drag_started(card_visual: Node)
 
-const CARD_SPACING: float = 115.0  # Horizontal spacing between cards
-const PREVIEW_CARD_SPACING: float = 195.0  # Larger spacing for preview gap during drag
-const THRESHOLD_PADDING: float = 20.0  # Extra padding around hand bounds for threshold
+
 const HAND_Z_INDEX_BASE: int = 20  # Base z-index for hand cards (above PlayZone cards)
 
 var _cards_in_hand: Array[Node] = []  # Track which cards are still in the hand
@@ -255,12 +253,12 @@ func _arrange_cards() -> void:
 
 	var card_count = _cards_in_hand.size()
 	# Calculate total width and center offset
-	var total_width = (card_count - 1) * CARD_SPACING
+	var total_width = (card_count - 1) * GameConstants.HAND_CARD_SPACING
 	var start_x = -total_width / 2.0
 
 	for idx in range(card_count):
 		var child = _cards_in_hand[idx]
-		var x = start_x + (idx * CARD_SPACING)
+		var x = start_x + (idx * GameConstants.HAND_CARD_SPACING)
 		child.position = Vector2(x, 0)
 
 		# Update base position for hover animation
@@ -282,13 +280,13 @@ func _get_hand_bounds() -> Rect2:
 	var card_count = _cards_in_hand.size()
 
 	# Total width of the hand
-	var total_width = (card_count - 1) * CARD_SPACING + card_width
+	var total_width = (card_count - 1) * GameConstants.HAND_CARD_SPACING + card_width
 	var half_width = total_width / 2.0
 
 	# Create bounds rect centered at origin with padding
 	var bounds = Rect2(
-		Vector2(-half_width - THRESHOLD_PADDING, -card_height / 2.0 - THRESHOLD_PADDING),
-		Vector2(total_width + THRESHOLD_PADDING * 2, card_height + THRESHOLD_PADDING * 2)
+		Vector2(-half_width - GameConstants.HAND_BOUNDS_PADDING, -card_height / 2.0 - GameConstants.HAND_BOUNDS_PADDING),
+		Vector2(total_width + GameConstants.HAND_BOUNDS_PADDING * 2, card_height + GameConstants.HAND_BOUNDS_PADDING * 2)
 	)
 
 	return bounds
@@ -507,7 +505,7 @@ func _animate_cards_to_preview(preview_index: int) -> void:
 	if preview_index < 0:
 		# Collapse mode: return to normal spacing
 		var card_count = _cards_in_hand.size()
-		var total_width = (card_count - 1) * CARD_SPACING
+		var total_width = (card_count - 1) * GameConstants.HAND_CARD_SPACING
 		var start_x = -total_width / 2.0
 
 		_preview_tween = create_tween()
@@ -516,7 +514,7 @@ func _animate_cards_to_preview(preview_index: int) -> void:
 		_preview_tween.set_parallel(true)
 
 		for idx in range(card_count):
-			var target_x = start_x + (idx * CARD_SPACING)
+			var target_x = start_x + (idx * GameConstants.HAND_CARD_SPACING)
 			_preview_tween.tween_property(_cards_in_hand[idx], "position:x", target_x, 0.15)
 		return
 
@@ -533,15 +531,15 @@ func _animate_cards_to_preview(preview_index: int) -> void:
 	var current_card_offset_idx = 0 # This will track the index for spacing calculation, accounting for the gap
 
 	# Calculate total width with the gap
-	# The gap adds PREVIEW_CARD_SPACING instead of CARD_SPACING at the insertion point
-	var total_width_with_gap = (total_cards - 1) * CARD_SPACING + (PREVIEW_CARD_SPACING - CARD_SPACING)
+	# The gap adds GameConstants.HAND_PREVIEW_GAP instead of GameConstants.HAND_CARD_SPACING at the insertion point
+	var total_width_with_gap = (total_cards - 1) * GameConstants.HAND_CARD_SPACING + (GameConstants.HAND_PREVIEW_GAP - GameConstants.HAND_CARD_SPACING)
 	var start_x = -total_width_with_gap / 2.0
 
 	for idx in range(total_cards):
-		var target_x = start_x + (current_card_offset_idx * CARD_SPACING)
+		var target_x = start_x + (current_card_offset_idx * GameConstants.HAND_CARD_SPACING)
 		if idx == preview_index:
 			# If we are at the insertion point, add the extra spacing for the gap
-			target_x += (PREVIEW_CARD_SPACING - CARD_SPACING)
+			target_x += (GameConstants.HAND_PREVIEW_GAP - GameConstants.HAND_CARD_SPACING)
 
 		_preview_tween.tween_property(_cards_in_hand[idx], "position:x", target_x, 0.15)
 		current_card_offset_idx += 1

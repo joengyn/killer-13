@@ -1,4 +1,5 @@
 extends Node
+class_name GameConstants
 ## Constants - Global configuration values for Tiến Lên card game
 ##
 ## Centralizes all magic numbers and configuration values for easy tuning.
@@ -19,6 +20,14 @@ const CARD_BASE_HEIGHT: float = 80.0
 const CARD_WIDTH: float = CARD_BASE_WIDTH * CARD_SCALE
 ## Derived: Final displayed height of cards (CARD_BASE_HEIGHT * CARD_SCALE)
 const CARD_HEIGHT: float = CARD_BASE_HEIGHT * CARD_SCALE
+
+## ============================================================================
+## HAND DISPLAY CONFIGURATION
+## ============================================================================
+
+const HAND_CARD_SPACING: float = 115.0
+const HAND_PREVIEW_GAP: float = 195.0
+const HAND_BOUNDS_PADDING: float = 20.0
 
 ## ============================================================================
 ## SPRITESHEET CONFIGURATION
