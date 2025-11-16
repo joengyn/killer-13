@@ -99,6 +99,8 @@ func start_game() -> void:
 	# If starting player is a CPU (not player 0), kick off their turn
 	if game_state.current_player != 0:
 		_execute_ai_turn()
+	else: # Human player's turn
+		pass
 
 ## Execute human player's (player 0) play attempt
 ## Validates the play against game rules, updates game state if valid
@@ -179,6 +181,8 @@ func _handle_round_reset() -> void:
 	if round_winner != 0:
 		await get_tree().create_timer(0.5).timeout
 		_execute_ai_turn()
+	else: # Human player's turn
+		pass
 
 
 ## Check if human player (player 0) has passed in the current round
@@ -263,6 +267,8 @@ func _advance_turn() -> void:
 	# If next player is AI (player 1, 2, or 3), execute AI turn automatically
 	if next_player != 0:
 		await _execute_ai_turn() # Await the AI's full turn cycle
+	else: # Human player's turn
+		pass
 
 
 ## Internal: Execute AI player's turn

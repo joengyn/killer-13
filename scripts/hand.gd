@@ -104,3 +104,16 @@ func get_lowest_card() -> Card:
 	if cards.is_empty():
 		return null
 	return cards[0]
+
+## Returns a new array of cards representing the hand after removing specified cards,
+## without modifying the original hand.
+## @param cards_to_remove: Array of Card objects to conceptually remove
+## @return: New Array of Card objects
+func get_cards_after_removing(cards_to_remove: Array[Card]) -> Array[Card]:
+	var temp_cards = cards.duplicate(true) # Deep duplicate to avoid modifying original Card objects
+	for card_to_remove in cards_to_remove:
+		for i in range(temp_cards.size()):
+			if temp_cards[i].is_equal_to(card_to_remove):
+				temp_cards.remove_at(i)
+				break
+	return temp_cards

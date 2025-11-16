@@ -1,19 +1,21 @@
-[gd_scene load_steps=4 format=3 uid="uid://b5w7p2j3g2j3h"]
+[gd_scene load_steps=5 format=3 uid="uid://b5w7p2j3g2j3h"]
 
 [ext_resource type="Script" uid="uid://br6fgin4ah1jk" path="res://scripts/round_tracker.gd" id="1_w8xjg"]
 [ext_resource type="Theme" uid="uid://ddd872xm0x3ui" path="res://assets/theme.tres" id="1_xq2kr"]
 [ext_resource type="FontFile" uid="uid://cugnpp2dnvw3s" path="res://assets/rainyhearts.ttf" id="2_font"]
 [ext_resource type="LabelSettings" uid="uid://d2x7y8z9a1b2c" path="res://assets/game_over_label_settings.tres" id="3_label_settings"]
 
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_Transparent"]
+bg_color = Color(0, 0, 0, 0)
+
 [node name="RoundTracker" type="PanelContainer"]
 offset_right = 363.0
 offset_bottom = 84.0
 theme = ExtResource("1_xq2kr")
+theme_override_styles/panel = SubResource("StyleBoxFlat_Transparent")
 script = ExtResource("1_w8xjg")
 
-[node name="Label" type="Label" parent="."]
+[node name="PlaysContainer" type="HBoxContainer" parent="."]
 layout_mode = 2
-text = "3♠, 4♥ 4♣, K♦"
-label_settings = ExtResource("3_label_settings")
-horizontal_alignment = 1
-vertical_alignment = 1
+alignment = 1
+

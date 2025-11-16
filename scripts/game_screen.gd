@@ -23,7 +23,7 @@ var _connected_cards: Array[Node] = []
 @onready var _cpu_right_passed_label: Label = $CanvasLayer/UIContainer/CPURightPassedLabel
 @onready var _invalid_play_label: Label = $CanvasLayer/UIContainer/InvalidPlayLabel # New label for invalid plays
 @onready var _game_over_modal: PanelContainer = $CanvasLayer/UIContainer/GameOverModal
-@onready var _game_over_label: Label = $CanvasLayer/UIContainer/GameOverModal/GameOverLabel
+@onready var _game_over_label: Label = $CanvasLayer/UIContainer/GameOverModal/VBoxContainer/GameOverLabel
 
 signal ai_visual_ready(player_index: int) # Emitted by GameScreen to GameManager when AI hand visual preparation is complete.
 signal ai_action_complete(player_index: int) # Emitted by GameScreen to GameManager when AI action visuals (play/pass, hand return) are complete.
@@ -170,8 +170,8 @@ func _on_deck_clicked() -> void:
 
 func animate_deal_sequence() -> void:
 	"""Animate dealing 13 cards to each of 4 players (52 total)"""
-	# First, make sure GameManager has set up the game
-	_game_manager.setup_game()
+	# GameManager has already set up the game via reset_game()
+	# No need to call _game_manager.setup_game() here again.
 
 	# Reset card tracking for this deal
 	_cards_dealt = 0

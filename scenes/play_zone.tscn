@@ -5,15 +5,3 @@
 
 [node name="PlayZone" type="Node2D"]
 script = ExtResource("1_play_zone")
-
-[node name="Card1" parent="." instance=ExtResource("2_card")]
-position = Vector2(-172.5, 0)
-
-[node name="Card2" parent="." instance=ExtResource("2_card")]
-position = Vector2(-57.5, 0)
-
-[node name="Card3" parent="." instance=ExtResource("2_card")]
-position = Vector2(57.5, 0)
-
-[node name="Card4" parent="." instance=ExtResource("2_card")]
-position = Vector2(172.5, 0)

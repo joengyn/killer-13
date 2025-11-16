@@ -26,8 +26,8 @@ const POSITION_ANIMATION_DURATION: float = 0.2  ## Duration for position animati
 const RESET_ANIMATION_DURATION: float = 0.3  ## Duration for resetting effects
 
 @onready var card_visual = get_parent()
-@onready var click_area = card_visual.get_node("ClickArea")
-@onready var outer_sprite = card_visual.get_node("OuterSprite")
+var click_area: Area2D
+var outer_sprite: Sprite2D
 
 ## If true, this card responds to player input (hover, click, drag)
 var is_player_card: bool = false
@@ -69,6 +69,8 @@ static var _any_card_being_dragged: Node = null
 
 
 func _ready():
+	click_area = card_visual.get_node("ClickArea")
+	outer_sprite = get_parent().get_node("OuterSprite")
 	if not click_area:
 		push_error("CardInteraction: click_area is null!")
 		return

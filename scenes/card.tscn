@@ -49,6 +49,7 @@ position = Vector2(0, -0.25)
 texture = SubResource("ViewportTexture_card")
 offset = Vector2(12, 10)
 
+
 [node name="ClickArea" type="Area2D" parent="."]
 
 [node name="CollisionShape2D" type="CollisionShape2D" parent="ClickArea"]
