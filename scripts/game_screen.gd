@@ -48,9 +48,7 @@ func _ready() -> void:
 		if not player_action_complete.is_connected(_game_manager._on_player_action_complete):
 			player_action_complete.connect(_game_manager._on_player_action_complete)
 
-	# Set up reference between play zone and hand
-	if _play_zone and _player_hand:
-		_play_zone._player_hand = _player_hand
+
 
 	# Connect to PlayerHand's card signals
 	if _player_hand:

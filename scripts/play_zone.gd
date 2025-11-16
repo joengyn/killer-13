@@ -21,7 +21,7 @@ var CARD_SPACING: float:
 
 var _set_cards: Array[Node] = []  # Current active cards on the table
 var _atk_cards: Array[Node] = []  # Cards player is attempting to play
-var _player_hand: Node2D = null  # Reference to PlayerHand for returning cards
+
 
 # Position offsets for atk cards relative to set cards
 const ATK_OFFSET: Vector2 = Vector2(-40, -60)
@@ -30,10 +30,7 @@ const SET_Z_INDEX: int = 1
 
 
 func _ready() -> void:
-	# Find PlayerHand in parent
-	var parent = get_parent()
-	if parent:
-		_player_hand = parent.get_node_or_null("PlayerHand")
+
 
 	# Remove any preview cards that may exist in the scene file
 	for child in get_children():
