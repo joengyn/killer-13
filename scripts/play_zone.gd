@@ -19,10 +19,6 @@ const MAX_ZONE_WIDTH: float = 1604.0 # Max width for cards in the zone, based on
 var CARD_SPACING: float:
 	get: return CARD_WIDTH + CARD_GAP
 
-var _set_cards: Array[Node] = []  # Current active cards on the table
-var _atk_cards: Array[Node] = []  # Cards player is attempting to play
-
-
 # Position offsets for atk cards relative to set cards
 const ATK_OFFSET: Vector2 = Vector2(-40, -60)
 const ATK_Z_INDEX: int = 10
@@ -30,8 +26,6 @@ const SET_Z_INDEX: int = 1
 
 
 func _ready() -> void:
-
-
 	# Remove any preview cards that may exist in the scene file
 	for child in get_children():
 		child.queue_free()
@@ -39,7 +33,7 @@ func _ready() -> void:
 
 func add_atk_card(card: Node) -> void:
 	"""Add a card as an attack card to the play zone (floating above set cards)"""
-	if _atk_cards.has(card):
+	if card.is_in_group("play_zone_atk"):
 		return  # Already in atk zone
 
 	# Reparent card to PlayZone (will adjust global position to local)
@@ -61,18 +55,17 @@ func add_atk_card(card: Node) -> void:
 		# Connect to the card's interaction signals to detect clicks/drags
 		_connect_atk_card_signals(card)
 
-	_atk_cards.append(card)
+	card.add_to_group("play_zone_atk")
 	card.set_shadow_visible(true)
 	card.z_index = ATK_Z_INDEX
 
-	_sort_atk_cards()
 	_arrange_cards()
 
 
 func remove_atk_card(card: Node, new_parent: Node) -> void:
 	"""Remove an atk card and return it to its parent"""
-	if _atk_cards.has(card):
-		_atk_cards.erase(card)
+	if card.is_in_group("play_zone_atk"):
+		card.remove_from_group("play_zone_atk")
 
 		# Disconnect card signals to prevent memory leaks
 		_disconnect_atk_card_signals(card)
@@ -83,13 +76,7 @@ func remove_atk_card(card: Node, new_parent: Node) -> void:
 		new_parent.add_child(card)
 		card.global_position = old_global_pos
 
-		_sort_atk_cards()
 		_arrange_cards()
-
-
-func _sort_atk_cards() -> void:
-	"""Sort the attack cards by rank, then suit, using the static helper."""
-	_atk_cards.sort_custom(Card.compare_card_nodes_lt)
 
 
 func _connect_atk_card_signals(card: Node):
@@ -182,15 +169,16 @@ func _get_card_arrangement_params(card_list: Array[Node]) -> Dictionary:
 
 func _arrange_set_cards() -> void:
 	"""Arrange set cards in a straight horizontal line, centered with responsive spacing"""
-	if _set_cards.is_empty():
+	var set_cards = get_set_cards()
+	if set_cards.is_empty():
 		return
 
-	var params = _get_card_arrangement_params(_set_cards)
+	var params = _get_card_arrangement_params(set_cards)
 	var start_x = params.start_x
 	var effective_card_spacing = params.effective_card_spacing
 
-	for idx in range(_set_cards.size()):
-		var child = _set_cards[idx]
+	for idx in range(set_cards.size()):
+		var child = set_cards[idx]
 		var x = start_x + (idx * effective_card_spacing)
 		child.position = Vector2(x, 0)
 		child.z_index = SET_Z_INDEX
@@ -198,15 +186,16 @@ func _arrange_set_cards() -> void:
 
 func _arrange_atk_cards() -> void:
 	"""Arrange atk cards offset above the set cards with responsive spacing"""
-	if _atk_cards.is_empty():
+	var atk_cards = get_atk_cards()
+	if atk_cards.is_empty():
 		return
 
-	var params = _get_card_arrangement_params(_atk_cards)
+	var params = _get_card_arrangement_params(atk_cards)
 	var start_x = params.start_x
 	var effective_card_spacing = params.effective_card_spacing
 
-	for idx in range(_atk_cards.size()):
-		var child = _atk_cards[idx]
+	for idx in range(atk_cards.size()):
+		var child = atk_cards[idx]
 		var x = start_x + (idx * effective_card_spacing)
 		# Position offset up and to the left
 		child.position = Vector2(x, 0) + ATK_OFFSET
@@ -251,24 +240,42 @@ func _get_bounds_rect() -> Rect2:
 
 
 func get_atk_cards() -> Array[Node]:
-	"""Return array of atk cards"""
-	return _atk_cards.duplicate()
+	var cards: Array[Node] = []
+	cards.assign(get_tree().get_nodes_in_group("play_zone_atk"))
+	cards.sort_custom(Card.compare_card_nodes_lt)
+	return cards
+
+func get_set_cards() -> Array[Node]:
+	"""Return an array of set cards"""
+	var cards: Array[Node] = []
+	cards.assign(get_tree().get_nodes_in_group("play_zone_set"))
+	return get_tree().get_nodes_in_group("play_zone_set")
+
 
 func has_atk_card(card_visual: Node) -> bool:
 	"""Checks if the given visual card is currently in the attack zone."""
-	return card_visual in _atk_cards
+	return card_visual.is_in_group("play_zone_atk")
 
 
 func clear_atk_cards() -> void:
 	"""Clear all atk cards from the zone"""
-	_atk_cards.clear()
+	var atk_cards = get_atk_cards()
+	for card in atk_cards:
+		card.remove_from_group("play_zone_atk")
+		card.queue_free()
 	_arrange_cards()
 
 
 func set_set_cards(cards: Array[Node]) -> void:
 	"""Set the current set cards on the table"""
-	_set_cards = cards.duplicate()
-	for card in _set_cards:
+	# Clear existing set cards
+	for old_card in get_set_cards():
+		old_card.remove_from_group("play_zone_set")
+		old_card.queue_free()
+	
+	# Add new cards
+	for card in cards:
+		card.add_to_group("play_zone_set")
 		card.z_index = SET_Z_INDEX
 		# Set cards are not interactive (can't be clicked/dragged)
 		var card_interaction = card.get_node_or_null("Interaction")
@@ -279,13 +286,14 @@ func set_set_cards(cards: Array[Node]) -> void:
 
 func commit_atk_to_set() -> void:
 	"""Commit atk cards to become new set cards (called when Play is pressed and validated)"""
-	if _atk_cards.is_empty():
+	var atk_cards = get_atk_cards()
+	if atk_cards.is_empty():
 		return
 
 	# Animate atk cards to set positions
-	for i in range(_atk_cards.size()):
-		var atk_card = _atk_cards[i]
-		var target_pos = _get_set_position(i)
+	for i in range(atk_cards.size()):
+		var atk_card = atk_cards[i]
+		var target_pos = _get_set_position(i, atk_cards)
 
 		# Create tween to animate position
 		var tween = create_tween()
@@ -296,16 +304,15 @@ func commit_atk_to_set() -> void:
 	# After animation completes, finalize the transition
 	await get_tree().create_timer(0.35).timeout
 
-	# Remove old set cards from scene (includes face-down placeholder if present)
-	for card in _set_cards:
+	# Remove old set cards from scene
+	for card in get_set_cards():
+		card.remove_from_group("play_zone_set")
 		card.queue_free()
 
-	# Move atk cards to set cards
-	_set_cards = _atk_cards.duplicate()
-	_atk_cards.clear()
-
-	# Disable interactions for new set cards
-	for card in _set_cards:
+	# Move atk cards to set cards group
+	for card in atk_cards:
+		card.remove_from_group("play_zone_atk")
+		card.add_to_group("play_zone_set")
 		card.z_index = SET_Z_INDEX
 		var card_interaction = card.get_node_or_null("Interaction")
 		if card_interaction:
@@ -315,12 +322,12 @@ func commit_atk_to_set() -> void:
 	_arrange_cards()
 
 
-func _get_set_position(index: int) -> Vector2:
+func _get_set_position(index: int, card_list: Array[Node]) -> Vector2:
 	"""Calculate the position for a set card at the given index"""
-	if _atk_cards.is_empty():
+	if card_list.is_empty():
 		return Vector2.ZERO
 
-	var params = _get_card_arrangement_params(_atk_cards)
+	var params = _get_card_arrangement_params(card_list)
 	var start_x = params.start_x
 	var effective_card_spacing = params.effective_card_spacing
 
@@ -330,25 +337,22 @@ func _get_set_position(index: int) -> Vector2:
 
 func reset_to_placeholder() -> void:
 	"""Reset the play zone to show only a face-down placeholder card"""
+	var set_cards = get_set_cards()
 	# Keep one set card and flip it face-down, delete the rest
-	if _set_cards.size() > 0:
+	if set_cards.size() > 0:
 		# Keep the first card as placeholder
-		var placeholder = _set_cards[0]
+		var placeholder = set_cards[0]
 
 		# Delete all other set cards
-		for i in range(1, _set_cards.size()):
-			_set_cards[i].queue_free()
-
-		# Clear array and keep only the placeholder
-		_set_cards.clear()
-		_set_cards.append(placeholder)
+		for i in range(1, set_cards.size()):
+			var card_to_remove = set_cards[i]
+			card_to_remove.remove_from_group("play_zone_set")
+			card_to_remove.queue_free()
 
 		# Flip it to face-down
 		if placeholder.has_method("set_show_back"):
 			placeholder.set_show_back(true)
 
-		# Position in center
-		# placeholder.position = Vector2(0, 0)
 		placeholder.z_index = SET_Z_INDEX
 
 		# Ensure interactions are disabled
@@ -356,18 +360,22 @@ func reset_to_placeholder() -> void:
 		if card_interaction:
 			card_interaction.is_player_card = false
 	
-	# Clear atk cards (shouldn't have any, but just in case)
-	_atk_cards.clear()
+	# Clear atk cards
+	for card in get_atk_cards():
+		card.remove_from_group("play_zone_atk")
+		card.queue_free()
+		
 	_arrange_cards()
 
 
 func shake_atk_cards() -> void:
 	"""Applies a shaking animation to all cards currently in the attack zone."""
+	var atk_cards = get_atk_cards()
 	var shake_strength = 10 # Pixels
 	var shake_duration = 0.05 # Seconds per shake segment
 	var num_shakes = 3 # Number of back-and-forth shakes
 
-	for card in _atk_cards:
+	for card in atk_cards:
 		var original_pos = card.position
 		var tween = create_tween()
 		tween.set_trans(Tween.TRANS_SINE)
@@ -382,12 +390,12 @@ func shake_atk_cards() -> void:
 		tween.tween_property(card, "position", original_pos, shake_duration)
 
 func set_cards_interactive(interactive: bool) -> void:
-	for card_visual in _atk_cards:
+	for card_visual in get_atk_cards():
 		var interaction = card_visual.get_node_or_null("Interaction")
 		if interaction:
 			# Atk cards should be fully interactive (reorderable and movable) when 'interactive' is true
 			interaction.set_interactive(interactive, interactive)
-	for card_visual in _set_cards:
+	for card_visual in get_set_cards():
 		var interaction = card_visual.get_node_or_null("Interaction")
 		if interaction:
 			# Set cards are never interactive for the player
@@ -395,10 +403,10 @@ func set_cards_interactive(interactive: bool) -> void:
 
 func clear_all_cards() -> void:
 	"""Removes all cards (set and attack) from the play zone."""
-	for card in _set_cards:
+	for card in get_set_cards():
+		card.remove_from_group("play_zone_set")
 		card.queue_free()
-	_set_cards.clear()
 
-	for card in _atk_cards:
+	for card in get_atk_cards():
+		card.remove_from_group("play_zone_atk")
 		card.queue_free()
-	_atk_cards.clear()

@@ -136,38 +136,32 @@ func execute_player_play(cards: Array[Card]) -> bool:
 ## Execute human player's (player 0) pass action
 ## Marks player as passed, checks for round end, advances turn
 func pass_turn() -> String:
-	"""Human player (player 0) passes their turn
-
-	@return: "invalid", "pass_ok", or "round_ended"
-	"""
 	if not is_game_running or game_state.current_player != 0:
 		return "invalid"
 
-	# Check for conditions where passing is not allowed
+	# Cannot pass if table is empty (must start the round)
 	if game_state.get_table_combo().is_empty():
-		var error_message = "You must play a card to start the round."
-		if first_turn_of_game:
-			# This is the very first turn of the game. The player with 3 of spades must play.
-			# This function is only for player 0, so we check if they have it.
-			if players[0].find_three_of_spades():
-				error_message = "Cannot pass on the first turn if you have the 3♠!"
-		
+		var error_message: String
+
+		# Special case: first turn of game requires 3♠
+		if first_turn_of_game and players[0].find_three_of_spades():
+			error_message = "Cannot pass on the first turn if you have the 3♠!"
+		else:
+			error_message = "You must play a card to start the round."
+
 		invalid_play_attempted.emit(error_message)
 		return "invalid"
 
-	# Prevent double-passing in the same round
+	# Prevent double-passing
 	if game_state.has_current_player_passed():
-		var error_message = "You have already passed this round!"
-		invalid_play_attempted.emit(error_message)
+		invalid_play_attempted.emit("You have already passed this round!")
 		return "invalid"
 
+	# Execute the pass
 	game_state.mark_player_passed()
 	player_passed.emit(0)
-	
-	# Show PASSED label for human player
-	# (GameScreen handles this via signal)
 
-	# Check if all other players passed (round over)
+	# Check if round ends
 	if game_state.all_others_passed():
 		round_ended.emit()
 		return "round_ended"
@@ -236,17 +230,11 @@ func _execute_play(cards: Array[Card]) -> void:
 	"""Execute a valid play"""
 	var player_idx = game_state.current_player
 	var player_hand = players[player_idx]
-
-
-
-	# Check if this is the first play of the round (becomes set card)
 	var is_set_play = game_state.get_table_combo().is_empty()
 
 	# Remove cards from player's hand
 	player_hand.remove_cards(cards)
 	hand_updated.emit(player_idx, player_hand.cards)
-
-
 
 	# Update game state
 	game_state.mark_player_played()
@@ -287,19 +275,11 @@ func _advance_turn() -> void:
 
 # Get AI decision (pure logic, instant - no await)
 func _execute_ai_turn() -> void:
-	var start_time = Time.get_ticks_usec()
-	
 	if not is_game_running:
 		return
 
 	var player_idx = game_state.current_player
 	var hand = players[player_idx]
-
-	# NEW LOGIC: If this AI won the round, trigger the reset.
-	# The reset will make it this AI's turn again with a clear table.
-	if game_state.all_others_passed():
-		round_ended.emit()
-		return # Stop execution here, the reset will trigger the next turn.
 
 	if game_state.has_current_player_passed():
 		_advance_turn()
@@ -309,22 +289,19 @@ func _execute_ai_turn() -> void:
 	var cards_to_play = SimpleAI.decide_play(hand, game_state, is_first_player_with_3_spades)
 
 	ai_turn_started.emit(player_idx, cards_to_play)
-	
-	var elapsed = Time.get_ticks_usec() - start_time
-	# Should be < 1000 microseconds (1ms)
 
 
 # AI action
 func _on_ai_action_complete(player_idx: int, cards_played: Array) -> void:
 	if not is_game_running:
 		return
-	
+
 	# Process the AI's action (update game state)
 	if cards_played.is_empty():
 		# AI passed
 		game_state.mark_player_passed()
 		player_passed.emit(player_idx)
-		
+
 		# Check if all others passed (round ends)
 		if game_state.all_others_passed():
 			round_ended.emit()
@@ -335,7 +312,7 @@ func _on_ai_action_complete(player_idx: int, cards_played: Array) -> void:
 		for card in cards_played:
 			cards_typed.append(card as Card)
 		_execute_play(cards_typed)
-	
+
 	# Advance to next turn (instant)
 	_advance_turn()
 

@@ -86,7 +86,7 @@ func _load_sprite() -> void:
 		return
 
 	# Get or create card loader (always have one available)
-	var card_loader = get_node_or_null("/root/CardLoader")
+	var card_loader = CardLoader
 	if not card_loader:
 		var CardLoaderScript = load("res://scripts/card/card_loader.gd")
 		if CardLoaderScript:
