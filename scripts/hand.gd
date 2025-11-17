@@ -7,13 +7,14 @@ class_name Hand
 
 ## Array of Card objects in this hand (always kept sorted)
 var cards: Array[Card] = []
+var _needs_sort: bool = false
 
 ## Initialize a new hand with the given cards and sort them
 ## @param initial_cards: Array of Card objects to start with
 func _init(initial_cards: Array[Card]) -> void:
 	for card in initial_cards:
 		cards.append(card as Card)
-	sort_hand()
+	_needs_sort = true
 
 ## Sort the hand by rank (ascending), then suit (Spades → Hearts)
 ## Called automatically after adding or removing cards
@@ -63,17 +64,26 @@ func remove_cards(played_cards: Array) -> bool:
 	for card in played_cards:
 		cards.erase(card)
 
-	sort_hand()
+	_needs_sort = true
 	return true
+
+## Get the sorted cards, sorting only if necessary
+## @return: Array of Card objects, guaranteed to be sorted
+func get_sorted_cards() -> Array[Card]:
+	if _needs_sort:
+		sort_hand()
+		_needs_sort = false
+	return cards
 
 ## Convert hand to a space-separated string for display/debugging
 ## Example output: "3♠ 4♠ 5♠ 6♣ 7♦ 8♥ 9♠ 10♣ J♦ Q♥ K♠ A♣ 2♦"
 ## @return: String representation of all cards in hand
 func _to_string() -> String:
 	var hand_str = ""
-	for i in range(cards.size()):
-		hand_str += cards[i]._to_string()
-		if i < cards.size() - 1:
+	var sorted_cards = get_sorted_cards()
+	for i in range(sorted_cards.size()):
+		hand_str += sorted_cards[i]._to_string()
+		if i < sorted_cards.size() - 1:
 			hand_str += " "
 	return hand_str
 
@@ -90,20 +100,18 @@ func get_cards_by_rank(rank: Card.Rank) -> Array[Card]:
 ## Get the highest ranking card in hand (by rank, then suit)
 ## @return: The Card object with highest rank and suit, or null if hand is empty
 func get_highest_card() -> Card:
-	if cards.is_empty():
+	var sorted_cards = get_sorted_cards()
+	if sorted_cards.is_empty():
 		return null
-	var highest = cards[0]
-	for card in cards:
-		if card.compare_to(highest) > 0:
-			highest = card
-	return highest
+	return sorted_cards[sorted_cards.size() - 1]
 
 ## Get the lowest ranking card in hand (hand is always sorted)
 ## @return: The Card object with lowest rank and suit (first card), or null if hand is empty
 func get_lowest_card() -> Card:
-	if cards.is_empty():
+	var sorted_cards = get_sorted_cards()
+	if sorted_cards.is_empty():
 		return null
-	return cards[0]
+	return sorted_cards[0]
 
 ## Returns a new array of cards representing the hand after removing specified cards,
 ## without modifying the original hand.

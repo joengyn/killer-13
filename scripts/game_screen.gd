@@ -19,6 +19,7 @@ extends Node2D
 @onready var _invalid_play_label: Label = $CanvasLayer/UIContainer/InvalidPlayLabel
 @onready var _game_over_label: Label = $CanvasLayer/UIContainer/GameOverModal/VBoxContainer/GameOverLabel
 @onready var _game_over_modal: PanelContainer = $CanvasLayer/UIContainer/GameOverModal
+@onready var _sort_button: Button = $CanvasLayer/UIContainer/SortButton
 
 # Runtime data (NOT @onready)
 var _game_manager = GameManager # Direct reference to autoload
@@ -26,7 +27,8 @@ var _is_dealing: bool = false
 var _cards_dealt: int = 0
 var _cpu_hands: Array[Node2D] = []
 var _dragging_card: Node = null
-var _prev_player_counts: Array[int] = [0, 0, 0, 0]  # TODO remove this
+var _prev_player_counts: Array[int] = [0, 0, 0, 0]
+var _auto_sort_enabled: bool = true
 
 # Signals
 signal ai_action_complete(player_idx: int, cards_played: Array)
@@ -83,6 +85,9 @@ func _ready() -> void:
 		_play_button.pressed.connect(_on_play_pressed)
 	if _pass_button:
 		_pass_button.pressed.connect(_on_pass_pressed)
+	if _sort_button:
+		_sort_button.pressed.connect(_on_sort_button_pressed)
+	_update_sort_button_text()
 
 
 	# Connect deck click to dealing animation
@@ -105,6 +110,23 @@ func _ready() -> void:
 func _on_start_button_pressed() -> void:
 	_start_game_immediately()
 
+func _on_sort_button_pressed() -> void:
+	"""Toggles the auto-sort feature for the player's hand."""
+	_auto_sort_enabled = not _auto_sort_enabled
+	_update_sort_button_text()
+
+	if _auto_sort_enabled:
+		# If auto-sort is turned on, immediately re-sort and display the hand
+		if _player_hand and _player_hand.has_method("clear_and_populate"):
+			_player_hand.clear_and_populate(_game_manager.players[0].get_sorted_cards())
+			_player_hand.set_cards_interactive(true)
+	# If auto-sort is turned off, the hand remains in its current visual order.
+
+func _update_sort_button_text() -> void:
+	"""Updates the text of the 'Sort' button based on the current auto-sort enabled state."""
+	if _sort_button:
+		_sort_button.text = ("✓" if _auto_sort_enabled else "✗")
+
 
 func _start_game_immediately() -> void:
 	"""Sets up and starts the game instantly without dealing animations."""
@@ -119,7 +141,9 @@ func _start_game_immediately() -> void:
 
 	# Populate player's hand
 	if _player_hand and _player_hand.has_method("clear_and_populate"):
-		_player_hand.clear_and_populate(players[0].cards)
+		_player_hand.clear_and_populate(players[0].get_sorted_cards())
+		_player_hand.auto_sort_enabled = _auto_sort_enabled
+		_player_hand.set_cards_interactive(true)
 
 	# Populate CPU hands
 	# Player 1 = CPU Left, Player 2 = CPU Top, Player 3 = CPU Right
@@ -207,6 +231,11 @@ func animate_deal_sequence() -> void:
 	if _deck:
 		_deck.visible = false
 
+	if _player_hand and _player_hand.has_method("clear_and_populate"):
+		_player_hand.clear_and_populate(_game_manager.players[0].get_sorted_cards())
+		_player_hand.auto_sort_enabled = _auto_sort_enabled
+		_player_hand.set_cards_interactive(true)
+
 	_show_action_buttons()
 
 
@@ -256,6 +285,8 @@ func _hide_action_buttons() -> void:
 		_play_button.visible = false
 	if _pass_button:
 		_pass_button.visible = false
+	if _sort_button:
+		_sort_button.visible = false
 
 
 func _show_action_buttons() -> void:
@@ -264,6 +295,8 @@ func _show_action_buttons() -> void:
 		_play_button.visible = true
 	if _pass_button:
 		_pass_button.visible = true
+	if _sort_button:
+		_sort_button.visible = true
 
 
 
@@ -660,6 +693,9 @@ func _connect_game_manager_signals() -> void:
 	if not _game_manager.player_0_set_zone_updated.is_connected(_on_player_0_set_zone_updated):
 		_game_manager.player_0_set_zone_updated.connect(_on_player_0_set_zone_updated)
 
+	if _player_hand and not _player_hand.auto_sort_disabled.is_connected(_on_player_hand_auto_sort_disabled):
+		_player_hand.auto_sort_disabled.connect(_on_player_hand_auto_sort_disabled)
+
 
 func _on_game_reset() -> void:
 	"""Handles the visual reset of the game screen when GameManager signals a game reset."""
@@ -719,13 +755,31 @@ func _on_game_reset() -> void:
 	_cards_dealt = 0
 	_prev_player_counts = [0, 0, 0, 0]
 
+	# Reset auto-sort to true on game reset
+	_auto_sort_enabled = true
+	_update_sort_button_text()
+
+
+func _on_player_hand_auto_sort_disabled() -> void:
+	_auto_sort_enabled = false
+	_update_sort_button_text()
+
 
 func _on_hand_updated(player_index: int, cards: Array[Card]) -> void:
 	"""Handler for GameManager.hand_updated signal - updates any player's visual hand."""
 	if player_index == 0:
-		# Update player 0's (human) hand
-		if _player_hand and _player_hand.has_method("clear_and_populate"):
-			_player_hand.clear_and_populate(cards)
+		if _auto_sort_enabled:
+			# If auto-sort is on, clear and populate with the sorted cards
+			if _player_hand and _player_hand.has_method("clear_and_populate"):
+				_player_hand.clear_and_populate(cards) # 'cards' here are already sorted from GameManager
+				_player_hand.auto_sort_enabled = _auto_sort_enabled
+				_player_hand.set_cards_interactive(true)
+		else:
+			# If auto-sort is off, update the hand without re-sorting the visual order
+			# This requires a new method in PlayerHand
+			if _player_hand and _player_hand.has_method("update_visual_cards_after_play"):
+				_player_hand.update_visual_cards_after_play(cards)
+				_player_hand.auto_sort_enabled = _auto_sort_enabled
 
 	else:
 		# Update a CPU's hand
@@ -736,7 +790,7 @@ func _on_hand_updated(player_index: int, cards: Array[Card]) -> void:
 				cpu_hand_node.clear_and_set_count(cards.size())
 
 
-func _on_player_0_attack_zone_updated() -> void:
+func _on_player_0_attack_zone_updated(_cards: Array[Card]) -> void:
 	"""Handler for GameManager.player_0_attack_zone_updated signal - updates player 0's visual attack zone."""
 	# This signal is emitted when player 0 successfully plays cards.
 	# The visual update (moving cards from hand to attack zone) is already handled by _on_play_pressed
@@ -744,7 +798,7 @@ func _on_player_0_attack_zone_updated() -> void:
 	pass
 
 
-func _on_player_0_set_zone_updated() -> void:
+func _on_player_0_set_zone_updated(_cards: Array[Card]) -> void:
 	"""Handler for GameManager.player_0_set_zone_updated signal - updates player 0's visual set zone."""
 	# This signal is emitted when player 0 successfully plays cards and they are committed to the set.
 	# The visual update (moving cards from attack zone to set zone) is already handled by _on_play_pressed

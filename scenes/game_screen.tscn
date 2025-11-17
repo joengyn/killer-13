@@ -36,6 +36,19 @@ grow_horizontal = 2
 theme = ExtResource("8_theme")
 text = "Start"
 
+[node name="SortButton" type="Button" parent="CanvasLayer/UIContainer"]
+layout_mode = 1
+anchors_preset = 5
+anchor_left = 0.5
+anchor_right = 0.5
+offset_left = -935.0
+offset_top = 970.0
+offset_right = -824.0
+offset_bottom = 1058.0
+grow_horizontal = 2
+theme = ExtResource("8_theme")
+text = "✓"
+
 [node name="InvalidPlayLabel" type="Label" parent="CanvasLayer/UIContainer"]
 visible = false
 layout_mode = 0

@@ -7,6 +7,7 @@ signal card_dragged_out(card_visual: Node)
 
 ## Emitted when a card drag starts
 signal card_drag_started(card_visual: Node)
+signal auto_sort_disabled
 
 
 const HAND_Z_INDEX_BASE: int = 20  # Base z-index for hand cards (above PlayZone cards)
@@ -20,6 +21,9 @@ var handles_bounds_checking: bool = true
 var _dragged_card: Node = null
 var _preview_insert_index: int = -1
 var _preview_tween: Tween = null
+var _last_preview_update: float = 0.0
+const PREVIEW_UPDATE_INTERVAL: float = 0.05  # 20fps
+var auto_sort_enabled: bool = true
 
 
 func _ready() -> void:
@@ -345,6 +349,7 @@ func _find_sorted_insertion_index(new_card_visual: Node) -> int:
 
 
 func _reorder_card_in_hand(card_visual: Node) -> void:
+	auto_sort_disabled.emit()
 	"""Reorder a card in the hand based on its current position
 
 	Takes a card that's being dragged within the hand and repositions it
@@ -380,6 +385,7 @@ func _reorder_card_in_hand(card_visual: Node) -> void:
 
 
 func _add_card_back(card: Node) -> void:
+	auto_sort_disabled.emit()
 	"""Add a card back to the hand based on its current position"""
 	# Safety check: don't add if already in hand
 	if card in _cards_in_hand:
@@ -408,9 +414,11 @@ func _update_z_indices() -> void:
 
 
 func _on_card_drag_position_updated(card: Node) -> void:
-	"""Called when a card's position is updated during drag"""
-	if _dragged_card == card:
-		_update_drag_preview(card)
+	var now = Time.get_ticks_msec() / 1000.0
+	if now - _last_preview_update < PREVIEW_UPDATE_INTERVAL:
+		return
+	_last_preview_update = now
+	_update_drag_preview(card)
 
 
 func _calculate_preview_index(drag_x_position: float) -> int:
@@ -620,6 +628,66 @@ func clear_and_populate(cards: Array[Card]) -> void:
 		# Hide shadows
 		if card_visual.has_method("set_shadow_visible"):
 			card_visual.set_shadow_visible(false)
+
+	# Update z indices and arrange
+	_update_z_indices()
+	_arrange_cards()
+
+func update_visual_cards_after_play(new_logical_cards: Array[Card]) -> void:
+	"""
+	Updates the visual cards in the hand after a play, without re-sorting the visual order.
+	Removes played cards and adds any new cards, maintaining the order of unplayed cards.
+	"""
+	var current_logical_cards: Array[Card] = []
+
+	# Build a list of current logical cards from visual nodes
+	for card_visual in _cards_in_hand:
+		if card_visual.has_method("get_card"):
+			current_logical_cards.append(card_visual.get_card())
+
+	# Identify visual cards to remove (those no longer in new_logical_cards)
+	for i in range(_cards_in_hand.size() - 1, -1, -1): # Iterate backwards to safely remove
+		var card_visual = _cards_in_hand[i]
+		if card_visual.has_method("get_card"):
+			var logical_card = card_visual.get_card()
+			var found = false
+			for new_card in new_logical_cards:
+				if new_card.equals(logical_card):
+					found = true
+					break
+			if not found:
+				_cards_in_hand.remove_at(i)
+				card_visual.queue_free()
+		else: # If card_visual doesn't have get_card, remove it as it's likely an invalid state
+			_cards_in_hand.remove_at(i)
+			card_visual.queue_free()
+
+	# Identify logical cards to add (those in new_logical_cards but not in current visual hand)
+	for new_card_data in new_logical_cards:
+		var found_visual = false
+		for card_visual in _cards_in_hand:
+			if card_visual.has_method("get_card") and card_visual.get_card().equals(new_card_data):
+				found_visual = true
+				break
+		if not found_visual:
+			# Create new visual card and add it
+			var card_visual = preload("res://scenes/card.tscn").instantiate() as Node
+			add_child(card_visual)
+			if card_visual.has_method("set_card"):
+				card_visual.set_card(new_card_data)
+			
+			var interaction = card_visual.get_node_or_null("Interaction")
+			if interaction:
+				if interaction.get_script() and str(interaction.get_script().resource_path).ends_with("card_interaction.gd"):
+					interaction.is_player_card = true
+				if interaction.has_method("update_base_position"):
+					interaction.update_base_position()
+			
+			if card_visual.has_method("set_shadow_visible"):
+				card_visual.set_shadow_visible(false)
+			
+			_cards_in_hand.append(card_visual) # Append for now, arrangement will handle position
+			_connect_card_drag_listener(card_visual)
 
 	# Update z indices and arrange
 	_update_z_indices()

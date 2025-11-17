@@ -77,7 +77,7 @@ func setup_game(emit_signals: bool = true) -> void:
 	# Emit signal for player 0's initial hand, but only if emit_signals is true
 	# For deck dealing animation, cards are populated incrementally via _populate_dealt_cards
 	if emit_signals:
-		hand_updated.emit(0, players[0].cards)
+		hand_updated.emit(0, players[0].get_sorted_cards())
 
 	# Initialize game state for 4 players
 	game_state = GameState.new()
@@ -234,7 +234,7 @@ func _execute_play(cards: Array[Card]) -> void:
 
 	# Remove cards from player's hand
 	player_hand.remove_cards(cards)
-	hand_updated.emit(player_idx, player_hand.cards)
+	hand_updated.emit(player_idx, player_hand.get_sorted_cards())
 
 	# Update game state
 	game_state.mark_player_played()
