@@ -87,3 +87,4 @@ const CARD_SPRITESHEET_ROWS: int = 8
 const CARD_THEME_LIGHT_MODE_ROW_OFFSET: int = 0
 ## Row offset for dark mode cards (rows 4-7: Heart, Spade, Diamond, Club)
 const CARD_THEME_DARK_MODE_ROW_OFFSET: int = 4
+

@@ -1,3 +1,4 @@
+@tool
 extends Node2D
 ## CPUHand - Displays opponent cards (all face-down, no interaction)
 
@@ -27,9 +28,52 @@ var _original_position: Vector2 # Store the original position of the hand
 func _ready() -> void:
 	# Store the original position of the hand
 	_original_position = position
-	# At runtime, remove any preview cards that may exist in the scene
+
+	if Engine.is_editor_hint():
+		# MODE 1: EDITOR PREVIEW
+		_setup_editor_preview()
+	else:
+		# Runtime mode - clear preview cards
+		# At runtime, remove any preview cards that may exist in the scene
+		for card in get_children():
+			card.queue_free()
+
+
+## Create sample face-down cards in editor for preview
+func _setup_editor_preview() -> void:
+	# Clear any existing cards
 	for card in get_children():
 		card.queue_free()
+
+	_cards.clear()
+
+	# Create 8 face-down cards for preview (typical CPU hand size)
+	for i in range(8):
+		var card_visual = CardPool.get_card()
+		add_child(card_visual)
+
+		# Set to show back
+		if card_visual.has_method("set_show_back"):
+			card_visual.set_show_back(true)
+
+		# Hide shadows
+		if card_visual.has_method("set_shadow_visible"):
+			card_visual.set_shadow_visible(false)
+
+		var shadow_sprite = card_visual.get_node_or_null("ShadowSprite")
+		if shadow_sprite:
+			shadow_sprite.visible = false
+
+		# Disable interaction for preview
+		var interaction = card_visual.get_node_or_null("Interaction")
+		if interaction:
+			interaction.is_player_card = false
+
+		# Track the card
+		_cards.append(card_visual)
+
+	# Arrange cards
+	_arrange_cards()
 
 
 func _arrange_cards() -> void:

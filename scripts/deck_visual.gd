@@ -1,3 +1,4 @@
+@tool
 extends Node2D
 ## DeckVisual - Manages the visual deck and card dealing animation
 
@@ -27,13 +28,52 @@ var _cards_dealt_total: int = 0  # Track total cards dealt
 var _dealt_cards: Array[Node] = []  # Animated cards to clean up after dealing
 
 func _ready() -> void:
-	# Create the initial deck of 52 card backs at runtime
-	for i in range(52):
+	if Engine.is_editor_hint():
+		# MODE 1: EDITOR PREVIEW
+		_setup_editor_preview()
+	else:
+		# Runtime mode - create the full deck
+		# Create the initial deck of 52 card backs at runtime
+		for i in range(52):
+			var card_visual = CardPool.get_card()
+			add_child(card_visual)
+
+			# Position all cards in a stack (same position)
+			card_visual.position = Vector2.ZERO
+
+			# Set to show card back
+			if card_visual.has_method("set_show_back"):
+				card_visual.set_show_back(true)
+
+			# Hide shadows for deck cards
+			if card_visual.has_method("set_shadow_visible"):
+				card_visual.set_shadow_visible(false)
+
+			# Add to card visuals array
+			_card_visuals.append(card_visual)
+
+		_remaining_cards = _card_visuals.size()
+
+		# Add interactivity at runtime
+		_setup_click_detection()
+
+
+## Create a stacked card deck preview in editor
+func _setup_editor_preview() -> void:
+	# Clear any existing cards
+	for card in get_children():
+		card.queue_free()
+
+	_card_visuals.clear()
+
+	# Create 5 stacked cards with slight offsets for visual depth
+	for i in range(5):
 		var card_visual = CardPool.get_card()
 		add_child(card_visual)
 
-		# Position all cards in a stack (same position)
-		card_visual.position = Vector2.ZERO
+		# Position cards in a stack with slight offset for depth
+		var offset = i * 2  # Slight offset per card
+		card_visual.position = Vector2(offset * 0.5, offset * 0.5)
 
 		# Set to show card back
 		if card_visual.has_method("set_show_back"):
@@ -43,13 +83,12 @@ func _ready() -> void:
 		if card_visual.has_method("set_shadow_visible"):
 			card_visual.set_shadow_visible(false)
 
-		# Add to card visuals array
+		# Set z-index so cards layer correctly
+		card_visual.z_index = i
+
 		_card_visuals.append(card_visual)
 
 	_remaining_cards = _card_visuals.size()
-
-	# Add interactivity at runtime
-	_setup_click_detection()
 
 
 func _setup_click_detection() -> void:

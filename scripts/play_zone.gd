@@ -1,3 +1,4 @@
+@tool
 extends Node2D
 ## PlayZone - Manages cards that have been played/placed down
 
@@ -41,9 +42,14 @@ var CARD_SPACING: float:
 
 
 func _ready() -> void:
-	# Remove any preview cards that may exist in the scene file
-	for child in get_children():
-		child.queue_free()
+	if Engine.is_editor_hint():
+		# MODE 1: EDITOR PREVIEW
+		_setup_editor_preview()
+	else:
+		# Runtime mode - clear preview cards
+		# Remove any preview cards that may exist in the scene file
+		for child in get_children():
+			child.queue_free()
 
 
 func _get_atk_offset_for_player(player_idx: int) -> Vector2:
@@ -61,6 +67,71 @@ func _get_atk_offset_for_player(player_idx: int) -> Vector2:
 		2: return Vector2(0, -60)     # CPU Top: offset up
 		3: return Vector2(60, 0)      # CPU Right: offset right
 		_: return Vector2(-40, -60)   # Fallback to original offset
+
+
+## Create sample set and attack cards in editor for preview
+func _setup_editor_preview() -> void:
+	# Clear any existing cards
+	for child in get_children():
+		child.queue_free()
+
+	# Create 2 set cards (showing last played set)
+	var set_cards = []
+	for i in range(2):
+		var rank = (i + 3) % 13  # Start from 5 (FIVE)
+		var suit = i % 4  # Spades, Hearts
+		set_cards.append(Card.new(rank as Card.Rank, suit as Card.Suit))
+
+	# Create 2 attack cards (showing cards being thrown)
+	var atk_cards = []
+	for i in range(2):
+		var rank = (i + 6) % 13  # Start from 8 (EIGHT)
+		var suit = (i + 1) % 4  # Hearts, Diamonds
+		atk_cards.append(Card.new(rank as Card.Rank, suit as Card.Suit))
+
+	# Add set cards
+	for card_data in set_cards:
+		var card_visual = CardPool.get_card()
+		add_child(card_visual)
+		card_visual.add_to_group("play_zone_set")
+
+		if card_visual.has_method("set_card"):
+			card_visual.set_card(card_data)
+
+		# Set cards are not interactive in editor
+		var interaction = card_visual.get_node_or_null("Interaction")
+		if interaction:
+			interaction.is_player_card = false
+
+		# Hide shadows
+		if card_visual.has_method("set_shadow_visible"):
+			card_visual.set_shadow_visible(false)
+
+		card_visual.z_index = set_z_index_value
+
+	# Add attack cards
+	_current_atk_player_idx = 0  # Simulate human player attacking
+	for card_data in atk_cards:
+		var card_visual = CardPool.get_card()
+		add_child(card_visual)
+		card_visual.add_to_group("play_zone_atk")
+
+		if card_visual.has_method("set_card"):
+			card_visual.set_card(card_data)
+
+		# Attack cards are not interactive in editor
+		var interaction = card_visual.get_node_or_null("Interaction")
+		if interaction:
+			interaction.is_player_card = false
+
+		# Hide shadows
+		if card_visual.has_method("set_shadow_visible"):
+			card_visual.set_shadow_visible(false)
+
+		card_visual.z_index = atk_z_index
+
+	# Arrange all cards
+	_arrange_cards()
 
 
 func add_atk_card(card: Node, player_idx: int = -1) -> void:

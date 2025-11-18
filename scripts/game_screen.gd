@@ -37,11 +37,12 @@ signal card_play_visual_complete(player_index: int, cards: Array)
 
 
 func _ready() -> void:
-	# Skip setup in editor
 	if Engine.is_editor_hint():
+		# EDITOR MODE: Child components initialize their own previews
+		# Skip all game logic and signal connections
 		return
 
-
+	# RUNTIME MODE: Set up game signals and logic
 	# Connect GameScreen signals to GameManager handlers
 	# This is the reliable way to connect to a singleton
 	if _game_manager:
