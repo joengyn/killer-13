@@ -29,9 +29,9 @@ anchors_preset = 5
 anchor_left = 0.5
 anchor_right = 0.5
 offset_left = -81.5
-offset_top = 769.0
+offset_top = 585.0
 offset_right = 81.5
-offset_bottom = 847.0
+offset_bottom = 663.0
 grow_horizontal = 2
 theme = ExtResource("8_theme")
 text = "Start"
@@ -41,21 +41,39 @@ layout_mode = 1
 anchors_preset = 5
 anchor_left = 0.5
 anchor_right = 0.5
-offset_left = -935.0
-offset_top = 970.0
-offset_right = -824.0
-offset_bottom = 1058.0
+offset_left = 601.0
+offset_top = 18.0
+offset_right = 712.0
+offset_bottom = 106.0
 grow_horizontal = 2
 theme = ExtResource("8_theme")
 text = "✓"
+
+[node name="BackButton" type="Button" parent="CanvasLayer/UIContainer"]
+layout_mode = 1
+offset_left = 130.0
+offset_top = 17.0
+offset_right = 239.0
+offset_bottom = 105.0
+theme = ExtResource("8_theme")
+text = "←"
+
+[node name="ThemeButton" type="Button" parent="CanvasLayer/UIContainer"]
+layout_mode = 1
+offset_left = 1681.0
+offset_top = 19.0
+offset_right = 1790.0
+offset_bottom = 107.0
+theme = ExtResource("8_theme")
+text = "⏾"
 
 [node name="InvalidPlayLabel" type="Label" parent="CanvasLayer/UIContainer"]
 visible = false
 layout_mode = 0
 offset_left = 860.0
-offset_top = 756.0
+offset_top = 588.0
 offset_right = 1060.0
-offset_bottom = 806.0
+offset_bottom = 638.0
 theme = ExtResource("8_theme")
 theme_type_variation = &"LabelLarge"
 text = "PASSED"
@@ -66,9 +84,9 @@ vertical_alignment = 1
 visible = false
 layout_mode = 0
 offset_left = 860.0
-offset_top = 756.0
+offset_top = 588.0
 offset_right = 1060.0
-offset_bottom = 806.0
+offset_bottom = 638.0
 theme = ExtResource("8_theme")
 theme_type_variation = &"LabelLarge"
 text = "PASSED"
@@ -114,21 +132,27 @@ text = "PASSED"
 horizontal_alignment = 1
 vertical_alignment = 1
 
-[node name="PlayButton" type="Button" parent="CanvasLayer/UIContainer"]
-layout_mode = 0
-offset_left = 493.0
-offset_top = 235.0
-offset_right = 643.0
-offset_bottom = 313.0
+[node name="ActionButtonsContainer" type="HBoxContainer" parent="CanvasLayer/UIContainer"]
+layout_mode = 1
+anchors_preset = 5
+anchor_left = 0.5
+anchor_right = 0.5
+offset_left = -163.0
+offset_top = 987.0
+offset_right = 163.0
+offset_bottom = 1065.0
+grow_horizontal = 2
+alignment = 1
+
+[node name="PlayButton" type="Button" parent="CanvasLayer/UIContainer/ActionButtonsContainer"]
+custom_minimum_size = Vector2(150, 78)
+layout_mode = 2
 theme = ExtResource("8_theme")
 text = "Play"
 
-[node name="PassButton" type="Button" parent="CanvasLayer/UIContainer"]
-layout_mode = 0
-offset_left = 1275.0
-offset_top = 235.0
-offset_right = 1430.0
-offset_bottom = 313.0
+[node name="PassButton" type="Button" parent="CanvasLayer/UIContainer/ActionButtonsContainer"]
+custom_minimum_size = Vector2(155, 80)
+layout_mode = 2
 theme = ExtResource("8_theme")
 text = "Pass"
 
@@ -180,13 +204,13 @@ offset_bottom = 293.0
 grow_horizontal = 2
 
 [node name="Deck" parent="." instance=ExtResource("3_3uriw")]
-position = Vector2(960, 540)
+position = Vector2(960, 364)
 
 [node name="PlayZone" parent="." instance=ExtResource("5_play_zone")]
-position = Vector2(960, 540)
+position = Vector2(960, 364)
 
 [node name="PlayerHand" parent="." instance=ExtResource("4_player_hand")]
-position = Vector2(960, 1010)
+position = Vector2(960, 810)
 
 [node name="CPUHandTop" parent="." instance=ExtResource("6_cpu_hand")]
 position = Vector2(960, -100)

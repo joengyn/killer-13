@@ -16,7 +16,7 @@ extends Node
 
 ## Dictionary mapping "rank_suit" keys to AtlasTexture sprites (e.g., "0_1" = THREE of CLUBS)
 var card_sprites: Dictionary = {}
-## AtlasTexture for the card back (column 0, dark mode)
+## AtlasTexture for the card back (column 0, respecting current theme)
 var card_back_sprite: AtlasTexture
 ## The loaded spritesheet texture
 var texture: Texture2D
@@ -83,10 +83,11 @@ func load_sprites() -> void:
 			var key = "%d_%d" % [rank, suit]
 			card_sprites[key] = atlas
 
-	# Load card back (column 0, dark mode)
+	# Load card back (column 0, respecting theme)
 	var back_atlas = AtlasTexture.new()
 	back_atlas.atlas = texture
-	back_atlas.region = Rect2(0, (4 * card_height), card_width, card_height)
+	var back_row = 0 + theme_offset  # Card back in row 0, offset by theme
+	back_atlas.region = Rect2(0, (back_row * card_height), card_width, card_height)
 	card_back_sprite = back_atlas
 
 

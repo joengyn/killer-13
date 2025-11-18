@@ -9,8 +9,8 @@ extends Node2D
 @onready var _play_zone: Node2D = $PlayZone
 @onready var _deck: Node2D = $Deck
 @onready var _start_button: Button = $CanvasLayer/UIContainer/StartButton
-@onready var _play_button: Button = $CanvasLayer/UIContainer/PlayButton
-@onready var _pass_button: Button = $CanvasLayer/UIContainer/PassButton
+@onready var _play_button: Button = $CanvasLayer/UIContainer/ActionButtonsContainer/PlayButton
+@onready var _pass_button: Button = $CanvasLayer/UIContainer/ActionButtonsContainer/PassButton
 @onready var _round_tracker: Control = $CanvasLayer/UIContainer/RoundTracker
 @onready var _player_passed_label: Label = $CanvasLayer/UIContainer/PlayerPassedLabel
 @onready var _cpu_top_passed_label: Label = $CanvasLayer/UIContainer/CPUTopPassedLabel
@@ -20,6 +20,8 @@ extends Node2D
 @onready var _game_over_label: Label = $CanvasLayer/UIContainer/GameOverModal/VBoxContainer/GameOverLabel
 @onready var _game_over_modal: PanelContainer = $CanvasLayer/UIContainer/GameOverModal
 @onready var _sort_button: Button = $CanvasLayer/UIContainer/SortButton
+@onready var _theme_button: Button = $CanvasLayer/UIContainer/ThemeButton
+@onready var _back_button: Button = $CanvasLayer/UIContainer/BackButton
 
 # Runtime data (NOT @onready)
 var _game_manager = GameManager # Direct reference to autoload
@@ -29,6 +31,7 @@ var _cpu_hands: Array[Node2D] = []
 var _dragging_card: Node = null
 var _prev_player_counts: Array[int] = [0, 0, 0, 0]
 var _auto_sort_enabled: bool = true
+var _use_dark_theme: bool = true
 
 # Signals
 signal ai_action_complete(player_idx: int, cards_played: Array)
@@ -75,8 +78,10 @@ func _ready() -> void:
 	_cpu_hands = [_cpu_hand_left, _cpu_hand_top, _cpu_hand_right]
 
 
-	# Hide action buttons until game starts
+	# Hide action buttons until game starts (but keep Back button visible)
 	_hide_action_buttons()
+	if _back_button:
+		_back_button.visible = true
 
 
 	# Connect button signals
@@ -89,9 +94,14 @@ func _ready() -> void:
 	if _sort_button:
 		_sort_button.pressed.connect(_on_sort_button_pressed)
 	_update_sort_button_text()
+	if _theme_button:
+		_theme_button.pressed.connect(_on_theme_button_pressed)
+	_update_theme_button_text()
+	if _back_button:
+		_back_button.pressed.connect(_on_back_button_pressed)
 
 
-	# Connect deck click to dealing animation
+	# Connect to deck's deal_started signal for dealing animation
 	if _deck and _deck.has_signal("deal_started"):
 		_deck.deal_started.connect(_on_deck_clicked)
 
@@ -142,6 +152,64 @@ func _update_sort_button_text() -> void:
 	"""Updates the text of the 'Sort' button based on the current auto-sort enabled state."""
 	if _sort_button:
 		_sort_button.text = ("✓" if _auto_sort_enabled else "✗")
+
+
+# === Theme Management ===
+
+func _on_theme_button_pressed() -> void:
+	"""Toggles the card theme between dark and light modes."""
+	_use_dark_theme = not _use_dark_theme
+
+	# Update CardLoader
+	CardLoader.use_dark_mode = _use_dark_theme
+	CardLoader.load_sprites()
+
+	# Update button text
+	_update_theme_button_text()
+
+	# Redraw all visible cards with new theme
+	_redraw_all_cards()
+
+
+func _update_theme_button_text() -> void:
+	"""Updates the text of the Theme button based on the current theme."""
+	if _theme_button:
+		_theme_button.text = ("⏾" if _use_dark_theme else "☀︎")
+
+
+func _redraw_all_cards() -> void:
+	"""Refresh all visible cards to use the new theme sprites."""
+	# Refresh player hand cards
+	if _player_hand:
+		for card_visual in _player_hand._cards_in_hand:
+			if card_visual and card_visual.has_method("set_card"):
+				card_visual.set_card(card_visual.card)
+
+	# Refresh CPU hand cards (showing card backs)
+	for cpu_hand in _cpu_hands:
+		if cpu_hand:
+			for card_visual in cpu_hand._cards:
+				if card_visual and card_visual.has_method("set_show_back"):
+					card_visual.set_show_back(true)
+
+	# Refresh play zone atk cards
+	if _play_zone:
+		var atk_cards = _play_zone.get_atk_cards()
+		for card_visual in atk_cards:
+			if card_visual and card_visual.has_method("set_card"):
+				card_visual.set_card(card_visual.card)
+
+	# Refresh play zone set cards
+	if _play_zone:
+		var set_cards = _play_zone.get_set_cards()
+		for card_visual in set_cards:
+			if card_visual and card_visual.has_method("set_card"):
+				card_visual.set_card(card_visual.card)
+
+
+func _on_back_button_pressed() -> void:
+	"""Return to the main menu."""
+	get_tree().change_scene_to_file("res://scenes/main/main_menu.tscn")
 
 
 func _start_game_immediately() -> void:
@@ -297,13 +365,15 @@ func _populate_dealt_cards(num_cards_dealt: int) -> void:
 
 
 func _hide_action_buttons() -> void:
-	"""Hide play and pass buttons during dealing"""
+	"""Hide play and pass buttons during dealing (but keep Back button visible for navigation)"""
 	if _play_button:
 		_play_button.visible = false
 	if _pass_button:
 		_pass_button.visible = false
 	if _sort_button:
 		_sort_button.visible = false
+	if _theme_button:
+		_theme_button.visible = false
 
 
 func _show_action_buttons() -> void:
@@ -314,6 +384,10 @@ func _show_action_buttons() -> void:
 		_pass_button.visible = true
 	if _sort_button:
 		_sort_button.visible = true
+	if _theme_button:
+		_theme_button.visible = true
+	if _back_button:
+		_back_button.visible = true
 
 
 
@@ -779,6 +853,12 @@ func _on_game_reset() -> void:
 	_auto_sort_enabled = true
 	_update_sort_button_text()
 
+	# Reset theme to dark on game reset
+	_use_dark_theme = true
+	CardLoader.use_dark_mode = _use_dark_theme
+	CardLoader.load_sprites()
+	_update_theme_button_text()
+
 
 func _on_player_hand_auto_sort_disabled() -> void:
 	_auto_sort_enabled = false
@@ -858,3 +938,9 @@ func _exit_tree() -> void:
 	# Disconnect PlayerHand signals
 	if _player_hand and _player_hand.auto_sort_disabled.is_connected(_on_player_hand_auto_sort_disabled):
 		_player_hand.auto_sort_disabled.disconnect(_on_player_hand_auto_sort_disabled)
+
+	# Disconnect UI button signals
+	if _theme_button and _theme_button.pressed.is_connected(_on_theme_button_pressed):
+		_theme_button.pressed.disconnect(_on_theme_button_pressed)
+	if _back_button and _back_button.pressed.is_connected(_on_back_button_pressed):
+		_back_button.pressed.disconnect(_on_back_button_pressed)
