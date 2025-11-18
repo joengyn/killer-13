@@ -2,12 +2,12 @@
 
 [ext_resource type="Script" uid="uid://cvm2dyj5kxbga" path="res://scripts/card/card_visual.gd" id="1_15jvd"]
 [ext_resource type="Script" uid="uid://cc3k7bhrgixq4" path="res://scripts/card/card_interaction.gd" id="2_cardint"]
-[ext_resource type="Texture2D" uid="uid://bq1u2bjm4ks4" path="res://assets/kerenel_Cards.png" id="2_ey3ig"]
+[ext_resource type="Texture2D" uid="uid://bq1u2bjm4ks4" path="res://assets/colored-cards.png" id="2_ey3ig"]
 [ext_resource type="Shader" uid="uid://ddlwiup30erc1" path="res://assets/card.gdshader" id="3_shader"]
 
 [sub_resource type="AtlasTexture" id="AtlasTexture_kg30u"]
 atlas = ExtResource("2_ey3ig")
-region = Rect2(56, 80, 56, 80)
+region = Rect2(56, 320, 56, 80)
 
 [sub_resource type="ShaderMaterial" id="ShaderMaterial_card"]
 shader = ExtResource("3_shader")

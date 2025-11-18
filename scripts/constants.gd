@@ -74,7 +74,16 @@ const DEAL_CARD_INTERVAL: float = 0.015
 ## SPRITESHEET CONFIGURATION
 ## ============================================================================
 
-## Number of columns in the card spritesheet (0=backs/blanks, 1-13=A through K)
+## Number of columns in the card spritesheet (0=card back, 1=A, 2-9=cards 2-9, 10=10, 11-13=J-K)
 const CARD_SPRITESHEET_COLUMNS: int = 14
-## Number of rows in the card spritesheet (0-3=suits, 4-5=unused alternate colors)
-const CARD_SPRITESHEET_ROWS: int = 6
+## Number of rows in the card spritesheet (0-3=light mode, 4-7=dark mode)
+const CARD_SPRITESHEET_ROWS: int = 8
+
+## ============================================================================
+## CARD THEME CONFIGURATION
+## ============================================================================
+
+## Row offset for light mode cards (rows 0-3: Heart, Spade, Diamond, Club)
+const CARD_THEME_LIGHT_MODE_ROW_OFFSET: int = 0
+## Row offset for dark mode cards (rows 4-7: Heart, Spade, Diamond, Club)
+const CARD_THEME_DARK_MODE_ROW_OFFSET: int = 4
