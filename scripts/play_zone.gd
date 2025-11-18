@@ -21,6 +21,9 @@ signal atk_card_drag_started(card_visual: Node)
 ## Z-index for set cards (shown below attack cards)
 @export var set_z_index_value: int = 1
 
+## Tracks which player's cards are currently in the attack zone
+var _current_atk_player_idx: int = -1
+
 ## ============================================================================
 ## DERIVED VALUES
 ## ============================================================================
@@ -43,10 +46,31 @@ func _ready() -> void:
 		child.queue_free()
 
 
-func add_atk_card(card: Node) -> void:
+func _get_atk_offset_for_player(player_idx: int) -> Vector2:
+	"""Return the offset vector based on which player is attacking.
+
+	Offsets are 60 pixels in each direction relative to player position:
+	- Player 0 (Human/Bottom): offset DOWN (0, +60)
+	- Player 1 (CPU Left): offset LEFT (-60, 0)
+	- Player 2 (CPU Top): offset UP (0, -60)
+	- Player 3 (CPU Right): offset RIGHT (+60, 0)
+	"""
+	match player_idx:
+		0: return Vector2(0, 60)      # Human player: offset down
+		1: return Vector2(-60, 0)     # CPU Left: offset left
+		2: return Vector2(0, -60)     # CPU Top: offset up
+		3: return Vector2(60, 0)      # CPU Right: offset right
+		_: return Vector2(-40, -60)   # Fallback to original offset
+
+
+func add_atk_card(card: Node, player_idx: int = -1) -> void:
 	"""Add a card as an attack card to the play zone (floating above set cards)"""
 	if card.is_in_group("play_zone_atk"):
 		return  # Already in atk zone
+
+	# Store the player index when adding the first attack card
+	if get_atk_cards().is_empty() and player_idx >= 0:
+		_current_atk_player_idx = player_idx
 
 	# Reparent card to PlayZone (preserves global position automatically)
 	card.reparent(self)
@@ -204,11 +228,14 @@ func _arrange_atk_cards() -> void:
 	var start_x = params.start_x
 	var effective_card_spacing = params.effective_card_spacing
 
+	# Get the offset for the current attacking player
+	var current_offset = _get_atk_offset_for_player(_current_atk_player_idx)
+
 	for idx in range(atk_cards.size()):
 		var child = atk_cards[idx]
 		var x = start_x + (idx * effective_card_spacing)
-		# Position offset up and to the left
-		child.position = Vector2(x, 0) + atk_offset
+		# Position offset based on the attacking player
+		child.position = Vector2(x, 0) + current_offset
 		# z_index increases with index (later cards render on top)
 		child.z_index = atk_z_index + idx
 
@@ -228,17 +255,30 @@ func _get_bounds_rect() -> Rect2:
 	var zone_width = MAX_ZONE_WIDTH
 	var half_zone_width = zone_width / 2.0
 
-	# The height needs to accommodate both set cards (at y=0) and atk cards (offset by atk_offset.y)
+	# The height needs to accommodate both set cards (at y=0) and atk cards (offset based on attacking player)
 	# Assuming set cards are centered vertically at y=0, their range is -CARD_HEIGHT/2 to CARD_HEIGHT/2
-	# Atk cards are offset by atk_offset.y, so their range is atk_offset.y - CARD_HEIGHT/2 to atk_offset.y + CARD_HEIGHT/2
+	# Atk cards are offset based on the current attacking player, so we need to account for all possible offsets
 	var set_card_min_y = -CARD_HEIGHT / 2.0
 	var set_card_max_y = CARD_HEIGHT / 2.0
-	var atk_card_min_y = atk_offset.y - CARD_HEIGHT / 2.0
-	var atk_card_max_y = atk_offset.y + CARD_HEIGHT / 2.0
+
+	# Get the current atk offset based on attacking player
+	var current_offset = _get_atk_offset_for_player(_current_atk_player_idx)
+	var atk_card_min_y = current_offset.y - CARD_HEIGHT / 2.0
+	var atk_card_max_y = current_offset.y + CARD_HEIGHT / 2.0
 
 	var min_y = min(set_card_min_y, atk_card_min_y)
 	var max_y = max(set_card_max_y, atk_card_max_y)
 	var zone_height = max_y - min_y
+
+	# Account for horizontal offsets as well
+	var atk_card_min_x = current_offset.x - CARD_WIDTH / 2.0
+	var atk_card_max_x = current_offset.x + CARD_WIDTH / 2.0
+	var set_card_min_x = -CARD_WIDTH / 2.0
+	var set_card_max_x = CARD_WIDTH / 2.0
+
+	var min_x = min(set_card_min_x, atk_card_min_x)
+	var max_x = max(set_card_max_x, atk_card_max_x)
+	var _zone_width_adjusted = max_x - min_x
 
 	# Create bounds rect centered at origin
 	var bounds = Rect2(
@@ -273,6 +313,7 @@ func clear_atk_cards() -> void:
 	for card in atk_cards:
 		card.remove_from_group("play_zone_atk")
 		card.queue_free()
+	_current_atk_player_idx = -1
 	_arrange_cards()
 
 
@@ -299,6 +340,10 @@ func commit_atk_to_set() -> void:
 	var atk_cards = get_atk_cards()
 	if atk_cards.is_empty():
 		return
+
+	# Add 0.5s delay for CPU players before animating to set position
+	if _current_atk_player_idx > 0:
+		await get_tree().create_timer(0.5).timeout
 
 	# Animate atk cards to set positions
 	for i in range(atk_cards.size()):
@@ -374,7 +419,8 @@ func reset_to_placeholder() -> void:
 	for card in get_atk_cards():
 		card.remove_from_group("play_zone_atk")
 		card.queue_free()
-		
+	_current_atk_player_idx = -1
+
 	_arrange_cards()
 
 
@@ -420,6 +466,7 @@ func clear_all_cards() -> void:
 	for card in get_atk_cards():
 		card.remove_from_group("play_zone_atk")
 		card.queue_free()
+	_current_atk_player_idx = -1
 
 
 func _exit_tree() -> void:

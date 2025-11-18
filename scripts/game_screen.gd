@@ -118,7 +118,22 @@ func _on_sort_button_pressed() -> void:
 	if _auto_sort_enabled:
 		# If auto-sort is turned on, immediately re-sort and display the hand
 		if _player_hand and _player_hand.has_method("clear_and_populate"):
-			_player_hand.clear_and_populate(_game_manager.players[0].get_sorted_cards())
+			# Get cards currently in hand (exclude cards in play zone)
+			var cards_in_hand_data: Array[Card] = []
+			for card_visual in _player_hand._cards_in_hand:
+				if card_visual.has_method("get_card"):
+					cards_in_hand_data.append(card_visual.get_card())
+
+			# Get all sorted cards from game manager
+			var all_sorted_cards = _game_manager.players[0].get_sorted_cards()
+
+			# Filter sorted cards to only include those in hand (preserves sort order)
+			var sorted_hand_cards: Array[Card] = []
+			for card in all_sorted_cards:
+				if card in cards_in_hand_data:
+					sorted_hand_cards.append(card)
+
+			_player_hand.clear_and_populate(sorted_hand_cards)
 			_player_hand.set_cards_interactive(true)
 	# If auto-sort is turned off, the hand remains in its current visual order.
 
@@ -446,8 +461,8 @@ func _move_card_to_play_zone(card: Node) -> void:
 	# Update visual: hand arranges after card removal
 	_player_hand._arrange_cards()
 
-	# Add to play zone as atk card (visual reparenting)
-	_play_zone.add_atk_card(card)
+	# Add to play zone as atk card (visual reparenting) - player 0 is the human player
+	_play_zone.add_atk_card(card, 0)
 
 	# Ensure click listener is still connected
 	var interaction = card.get_node_or_null("Interaction")
@@ -576,7 +591,7 @@ func _animate_ai_cards_to_table(player_idx: int, cards: Array) -> void:
 
 	# Add cards to play zone as attack cards
 	for card in cards_to_move:
-		_play_zone.add_atk_card(card)
+		_play_zone.add_atk_card(card, player_idx)
 
 	# Commit them to set position with animation
 	await _play_zone.commit_atk_to_set()
