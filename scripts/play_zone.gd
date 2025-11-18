@@ -10,19 +10,31 @@ signal atk_card_dragged_out(card_visual: Node)
 ## Emitted when an atk card drag starts
 signal atk_card_drag_started(card_visual: Node)
 
+## ============================================================================
+## CONFIGURATION - Adjustable via Godot Inspector
+## ============================================================================
+
+## Position offset of attack cards relative to set cards
+@export var atk_offset: Vector2 = Vector2(-40, -60)
+## Z-index for attack cards (shown above set cards)
+@export var atk_z_index: int = 10
+## Z-index for set cards (shown below attack cards)
+@export var set_z_index_value: int = 1
+
+## ============================================================================
+## DERIVED VALUES
+## ============================================================================
+
 var CARD_WIDTH: float:
 	get: return Constants.CARD_WIDTH
 var CARD_HEIGHT: float:
 	get: return Constants.CARD_HEIGHT
-const CARD_GAP: float = 20.0  # Gap between cards
-const MAX_ZONE_WIDTH: float = 1604.0 # Max width for cards in the zone, based on 13 cards in hand
+var CARD_GAP: float:
+	get: return Constants.PLAY_ZONE_CARD_GAP
+var MAX_ZONE_WIDTH: float:
+	get: return Constants.PLAY_ZONE_MAX_WIDTH
 var CARD_SPACING: float:
 	get: return CARD_WIDTH + CARD_GAP
-
-# Position offsets for atk cards relative to set cards
-const ATK_OFFSET: Vector2 = Vector2(-40, -60)
-const ATK_Z_INDEX: int = 10
-const SET_Z_INDEX: int = 1
 
 
 func _ready() -> void:
@@ -36,13 +48,11 @@ func add_atk_card(card: Node) -> void:
 	if card.is_in_group("play_zone_atk"):
 		return  # Already in atk zone
 
-	# Reparent card to PlayZone (will adjust global position to local)
-	var old_global_pos = card.global_position
-	var old_parent = card.get_parent()
-	if old_parent:
-		old_parent.remove_child(card)
-	add_child(card)
-	card.global_position = old_global_pos
+	# Reparent card to PlayZone (preserves global position automatically)
+	card.reparent(self)
+
+	# Reset rotation to ensure all cards entering play zone are unrotated
+	card.rotation = 0.0
 
 	# Enable player card interactions (hover, click, drag) for atk cards
 	var card_interaction = card.get_node_or_null("Interaction")
@@ -57,7 +67,7 @@ func add_atk_card(card: Node) -> void:
 
 	card.add_to_group("play_zone_atk")
 	card.set_shadow_visible(true)
-	card.z_index = ATK_Z_INDEX
+	card.z_index = atk_z_index
 
 	_arrange_cards()
 
@@ -181,7 +191,7 @@ func _arrange_set_cards() -> void:
 		var child = set_cards[idx]
 		var x = start_x + (idx * effective_card_spacing)
 		child.position = Vector2(x, 0)
-		child.z_index = SET_Z_INDEX
+		child.z_index = set_z_index_value
 
 
 func _arrange_atk_cards() -> void:
@@ -198,9 +208,9 @@ func _arrange_atk_cards() -> void:
 		var child = atk_cards[idx]
 		var x = start_x + (idx * effective_card_spacing)
 		# Position offset up and to the left
-		child.position = Vector2(x, 0) + ATK_OFFSET
+		child.position = Vector2(x, 0) + atk_offset
 		# z_index increases with index (later cards render on top)
-		child.z_index = ATK_Z_INDEX + idx
+		child.z_index = atk_z_index + idx
 
 		# Update base position for hover animations
 		var interaction = child.get_node_or_null("Interaction")
@@ -218,13 +228,13 @@ func _get_bounds_rect() -> Rect2:
 	var zone_width = MAX_ZONE_WIDTH
 	var half_zone_width = zone_width / 2.0
 
-	# The height needs to accommodate both set cards (at y=0) and atk cards (offset by ATK_OFFSET.y)
+	# The height needs to accommodate both set cards (at y=0) and atk cards (offset by atk_offset.y)
 	# Assuming set cards are centered vertically at y=0, their range is -CARD_HEIGHT/2 to CARD_HEIGHT/2
-	# Atk cards are offset by ATK_OFFSET.y, so their range is ATK_OFFSET.y - CARD_HEIGHT/2 to ATK_OFFSET.y + CARD_HEIGHT/2
+	# Atk cards are offset by atk_offset.y, so their range is atk_offset.y - CARD_HEIGHT/2 to atk_offset.y + CARD_HEIGHT/2
 	var set_card_min_y = -CARD_HEIGHT / 2.0
 	var set_card_max_y = CARD_HEIGHT / 2.0
-	var atk_card_min_y = ATK_OFFSET.y - CARD_HEIGHT / 2.0
-	var atk_card_max_y = ATK_OFFSET.y + CARD_HEIGHT / 2.0
+	var atk_card_min_y = atk_offset.y - CARD_HEIGHT / 2.0
+	var atk_card_max_y = atk_offset.y + CARD_HEIGHT / 2.0
 
 	var min_y = min(set_card_min_y, atk_card_min_y)
 	var max_y = max(set_card_max_y, atk_card_max_y)
@@ -276,7 +286,7 @@ func set_set_cards(cards: Array[Node]) -> void:
 	# Add new cards
 	for card in cards:
 		card.add_to_group("play_zone_set")
-		card.z_index = SET_Z_INDEX
+		card.z_index = set_z_index_value
 		# Set cards are not interactive (can't be clicked/dragged)
 		var card_interaction = card.get_node_or_null("Interaction")
 		if card_interaction:
@@ -313,7 +323,7 @@ func commit_atk_to_set() -> void:
 	for card in atk_cards:
 		card.remove_from_group("play_zone_atk")
 		card.add_to_group("play_zone_set")
-		card.z_index = SET_Z_INDEX
+		card.z_index = set_z_index_value
 		var card_interaction = card.get_node_or_null("Interaction")
 		if card_interaction:
 			card_interaction.is_player_card = false
@@ -353,7 +363,7 @@ func reset_to_placeholder() -> void:
 		if placeholder.has_method("set_show_back"):
 			placeholder.set_show_back(true)
 
-		placeholder.z_index = SET_Z_INDEX
+		placeholder.z_index = set_z_index_value
 
 		# Ensure interactions are disabled
 		var card_interaction = placeholder.get_node_or_null("Interaction")
@@ -410,3 +420,10 @@ func clear_all_cards() -> void:
 	for card in get_atk_cards():
 		card.remove_from_group("play_zone_atk")
 		card.queue_free()
+
+
+func _exit_tree() -> void:
+	"""Clean up all signal connections when PlayZone is freed"""
+	# Disconnect all atk card signals
+	for card in get_atk_cards():
+		_disconnect_atk_card_signals(card)

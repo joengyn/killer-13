@@ -15,15 +15,28 @@ signal drag_position_updated(card_visual: Node)
 ## Emitted when the user clicks this card without dragging
 signal card_clicked(card_visual: Node)
 
-## Constants for card interaction and animation timing
+## ============================================================================
+## CONFIGURATION - Adjustable via Godot Inspector
+## ============================================================================
+
+## Scale multiplier when hovering over card (1.1 = 10% larger)
+@export var hover_scale_multiplier: float = 1.1
+## Vertical lift when hovering (negative = upward movement)
+@export var hover_vertical_offset: float = -80.0
+## Duration for scale animations when entering/exiting hover
+@export var scale_animation_duration: float = 0.2
+## Duration for position animations when entering/exiting hover
+@export var position_animation_duration: float = 0.2
+## Duration for resetting hover effects
+@export var reset_animation_duration: float = 0.3
+
+## ============================================================================
+## CONSTANTS
+## ============================================================================
+
 const CARD_SIZE: Vector2 = Vector2(56.0, 80.0)  ## Base card dimensions for hit detection
 const SHADER_MAX_ROTATION: float = 15.0  ## Maximum 3D tilt angle in degrees
 const SHADER_EASING_DURATION: float = 0.2  ## Duration for shader rotation animations
-const HOVER_SCALE_MULTIPLIER: float = 1.1  ## Scale multiplier when hovering (1.1 = 10% larger)
-const HOVER_VERTICAL_OFFSET: float = -80.0  ## Vertical lift when hovering (negative = upward)
-const SCALE_ANIMATION_DURATION: float = 0.2  ## Duration for scale animations
-const POSITION_ANIMATION_DURATION: float = 0.2  ## Duration for position animations
-const RESET_ANIMATION_DURATION: float = 0.3  ## Duration for resetting effects
 
 @onready var card_visual = get_parent()
 var click_area: Area2D
@@ -62,7 +75,6 @@ static var _click_processed_this_frame: bool = false
 ## Guard to prevent immediate re-click after card moves (prevents toggle spam)
 static var _last_clicked_card: Node = null
 static var _last_clicked_frame: int = -1
-const CLICK_COOLDOWN_FRAMES: int = 10  ## Minimum frames between clicks on same card
 
 ## Track if any card is currently being dragged (disables hover on all other cards)
 static var _any_card_being_dragged: Node = null
@@ -149,7 +161,7 @@ func _on_click_area_input(_viewport: Node, event: InputEvent, _shape_idx: int):
 			# Mouse released - check if this was a click or drag
 			if _mouse_pressed and not _is_being_dragged and not _click_processed_this_frame:
 				# Check if this is a re-click of the same card too soon (prevents click → move → immediate re-click)
-				if _last_clicked_card == card_visual and (current_frame - _last_clicked_frame) < CLICK_COOLDOWN_FRAMES:
+				if _last_clicked_card == card_visual and (current_frame - _last_clicked_frame) < Constants.CARD_CLICK_COOLDOWN_FRAMES:
 					# Same card clicked too soon - ignore to prevent rapid toggling when mouse stays over card
 					_mouse_pressed = false
 					return
@@ -209,8 +221,8 @@ func _unhandled_input(event: InputEvent):
 				# Activate hover
 				_is_mouse_over = true
 				if _is_in_player_hand():
-					_animate_scale_to(_base_scale * HOVER_SCALE_MULTIPLIER)
-					_animate_position_y_to(_base_y + HOVER_VERTICAL_OFFSET)
+					_animate_scale_to(_base_scale * hover_scale_multiplier)
+					_animate_position_y_to(_base_y + hover_vertical_offset)
 				if card_visual.has_method("set_shadow_visible"):
 					card_visual.set_shadow_visible(true)
 				_update_shader_rotation()
@@ -318,7 +330,7 @@ func _animate_scale_to(target_scale: Vector2) -> void:
 	_scale_tween = create_tween()
 	_scale_tween.set_trans(Tween.TRANS_QUAD)
 	_scale_tween.set_ease(Tween.EASE_OUT)
-	_scale_tween.tween_property(card_visual, "scale", target_scale, SCALE_ANIMATION_DURATION)
+	_scale_tween.tween_property(card_visual, "scale", target_scale, scale_animation_duration)
 
 
 ## Smoothly animate card's Y position (for hover lift effect)
@@ -338,7 +350,7 @@ func _animate_position_y_to(target_y: float) -> void:
 		func(y: float) -> void: card_visual.position.y = y,
 		start_y,
 		target_y,
-		POSITION_ANIMATION_DURATION
+		position_animation_duration
 	)
 
 
@@ -364,13 +376,13 @@ func _reset_shader_rotation() -> void:
 		func(val: float) -> void: outer_sprite.material.set_shader_parameter("x_rot", val),
 		current_x_rot,
 		0.0,
-		RESET_ANIMATION_DURATION
+		reset_animation_duration
 	)
 	_reset_tween.tween_method(
 		func(val: float) -> void: outer_sprite.material.set_shader_parameter("y_rot", val),
 		current_y_rot,
 		0.0,
-		RESET_ANIMATION_DURATION
+		reset_animation_duration
 	)
 
 

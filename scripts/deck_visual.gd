@@ -4,6 +4,23 @@ extends Node2D
 signal deal_started
 signal card_dealt(card_visual: Node)
 
+## ============================================================================
+## CONFIGURATION - Adjustable via Godot Inspector
+## ============================================================================
+
+## Duration for card dealing animation (in seconds)
+@export var deal_animation_duration: float = 0.15
+## Rotation angle for cards dealt to left player (radians)
+@export var left_player_rotation: float = -PI / 2.0
+## Rotation angle for cards dealt to right player (radians)
+@export var right_player_rotation: float = -PI / 2.0
+## Rotation angle for cards dealt to top player (radians)
+@export var top_player_rotation: float = 0.0
+
+## ============================================================================
+## RUNTIME STATE
+## ============================================================================
+
 var _remaining_cards: int = 52
 var _card_visuals: Array[Node] = []  # All card visuals in the deck stack
 var _cards_dealt_total: int = 0  # Track total cards dealt
@@ -12,7 +29,7 @@ var _dealt_cards: Array[Node] = []  # Animated cards to clean up after dealing
 func _ready() -> void:
 	# Create the initial deck of 52 card backs at runtime
 	for i in range(52):
-		var card_visual = preload("res://scenes/card.tscn").instantiate() as Node
+		var card_visual = CardPool.get_card()
 		add_child(card_visual)
 
 		# Position all cards in a stack (same position)
@@ -77,15 +94,15 @@ func deal_card_animated(target_pos: Vector2, player_idx: int) -> void:
 	# Create a temporary card visual for the dealing animation
 	var card: Node
 
-	# First 47 cards: instantiate temporary cards, deck stays full
-	# Last 5 cards (48-52): pop from the deck visual stack
-	if _cards_dealt_total >= 47 and _card_visuals.size() > 0:
+	# First N cards: instantiate temporary cards, deck stays full
+	# Last 5 cards: pop from the deck visual stack
+	if _cards_dealt_total >= Constants.DEALING_INSTANTIATE_THRESHOLD and _card_visuals.size() > 0:
 		# Last 5 cards: use and remove from the placeholder deck cards
 		card = _card_visuals.pop_back()
 		_remaining_cards = _card_visuals.size()
 	else:
 		# First 47 cards: instantiate new temporary cards
-		card = preload("res://scenes/card.tscn").instantiate() as Node
+		card = CardPool.get_card()
 		add_child(card)
 		card.position = Vector2.ZERO
 		if card.has_method("set_show_back"):
@@ -105,16 +122,16 @@ func deal_card_animated(target_pos: Vector2, player_idx: int) -> void:
 
 	# Set target rotation based on player position
 	var target_rotation = 0.0
-	if player_idx == 1:  # Left - add rotation to match Right CPU
-		target_rotation = -PI / 2
-	elif player_idx == 2:  # Top - remove rotation (was PI/2, now 0.0)
-		target_rotation = 0.0  # No rotation for Top CPU
-	elif player_idx == 3:  # Right - keep rotation for consistency
-		target_rotation = -PI / 2
+	if player_idx == 1:  # Left CPU
+		target_rotation = left_player_rotation
+	elif player_idx == 2:  # Top CPU
+		target_rotation = top_player_rotation
+	elif player_idx == 3:  # Right CPU
+		target_rotation = right_player_rotation
 
-	tween.tween_property(card, "global_position", target_pos, 0.15)
+	tween.tween_property(card, "global_position", target_pos, deal_animation_duration)
 	if target_rotation != 0.0:
-		tween.parallel().tween_property(card, "rotation", target_rotation, 0.15)
+		tween.parallel().tween_property(card, "rotation", target_rotation, deal_animation_duration)
 
 	# Wait for animation to complete
 	await tween.finished
@@ -127,6 +144,21 @@ func deal_card_animated(target_pos: Vector2, player_idx: int) -> void:
 func get_remaining_card_count() -> int:
 	"""Return how many cards are left in the deck"""
 	return _remaining_cards
+
+
+func _exit_tree() -> void:
+	"""Clean up all card visuals when scene is freed"""
+	# Free all card visuals in the deck
+	for card in _card_visuals:
+		if is_instance_valid(card):
+			card.queue_free()
+	_card_visuals.clear()
+
+	# Free all dealt cards
+	for card in _dealt_cards:
+		if is_instance_valid(card):
+			card.queue_free()
+	_dealt_cards.clear()
 
 
 func cleanup_dealt_cards() -> void:

@@ -9,6 +9,16 @@ signal card_dragged_out(card_visual: Node)
 signal card_drag_started(card_visual: Node)
 signal auto_sort_disabled
 
+## ============================================================================
+## CONFIGURATION - Adjustable via Godot Inspector
+## ============================================================================
+
+## Interval between drag preview updates (lower = smoother but more CPU)
+@export var preview_update_interval: float = 0.05  # 20fps
+
+## ============================================================================
+## CONSTANTS
+## ============================================================================
 
 const HAND_Z_INDEX_BASE: int = 20  # Base z-index for hand cards (above PlayZone cards)
 
@@ -22,7 +32,6 @@ var _dragged_card: Node = null
 var _preview_insert_index: int = -1
 var _preview_tween: Tween = null
 var _last_preview_update: float = 0.0
-const PREVIEW_UPDATE_INTERVAL: float = 0.05  # 20fps
 var auto_sort_enabled: bool = true
 
 
@@ -212,7 +221,7 @@ func _setup_editor_preview() -> void:
 	# Populate the hand with default cards
 	for idx in range(default_cards.size()):
 		var card_data = default_cards[idx]
-		var card_visual = preload("res://scenes/card.tscn").instantiate() as Node
+		var card_visual = CardPool.get_card()
 		add_child(card_visual)
 
 		# Set the card data
@@ -348,15 +357,14 @@ func _find_sorted_insertion_index(new_card_visual: Node) -> int:
 	return _cards_in_hand.size() # Insert at the end if it's the largest
 
 
+## Reorder a card in the hand based on its current position
+##
+## Takes a card that's being dragged within the hand and repositions it
+## based on where it was dropped relative to other cards.
+##
+## @param card_visual: The card node to reorder
 func _reorder_card_in_hand(card_visual: Node) -> void:
 	auto_sort_disabled.emit()
-	"""Reorder a card in the hand based on its current position
-
-	Takes a card that's being dragged within the hand and repositions it
-	based on where it was dropped relative to other cards.
-
-	@param card_visual: The card node to reorder
-	"""
 	# Validate and remove
 	if card_visual not in _cards_in_hand:
 		return
@@ -415,7 +423,7 @@ func _update_z_indices() -> void:
 
 func _on_card_drag_position_updated(card: Node) -> void:
 	var now = Time.get_ticks_msec() / 1000.0
-	if now - _last_preview_update < PREVIEW_UPDATE_INTERVAL:
+	if now - _last_preview_update < preview_update_interval:
 		return
 	_last_preview_update = now
 	_update_drag_preview(card)
@@ -557,7 +565,7 @@ func _animate_cards_to_preview(preview_index: int) -> void:
 
 func add_card(card_data: Card) -> Node:
 	"""Add a single card to the hand (used during dealing). Returns the created card visual node."""
-	var card_visual = preload("res://scenes/card.tscn").instantiate() as Node
+	var card_visual = CardPool.get_card()
 	add_child(card_visual)
 
 	# Set the card data
@@ -602,7 +610,7 @@ func clear_and_populate(cards: Array[Card]) -> void:
 	# Create new CardVisual nodes for each card data
 	for idx in range(cards.size()):
 		var card_data = cards[idx]
-		var card_visual = preload("res://scenes/card.tscn").instantiate() as Node
+		var card_visual = CardPool.get_card()
 		add_child(card_visual)
 
 		# Set the card data
@@ -671,7 +679,7 @@ func update_visual_cards_after_play(new_logical_cards: Array[Card]) -> void:
 				break
 		if not found_visual:
 			# Create new visual card and add it
-			var card_visual = preload("res://scenes/card.tscn").instantiate() as Node
+			var card_visual = CardPool.get_card()
 			add_child(card_visual)
 			if card_visual.has_method("set_card"):
 				card_visual.set_card(new_card_data)
@@ -726,3 +734,29 @@ func has_card(card_visual: Node) -> bool:
 func get_cards() -> Array[Node]:
 	"""Returns the array of visual card nodes currently in the hand."""
 	return _cards_in_hand
+
+
+func _exit_tree() -> void:
+	"""Clean up all resources when PlayerHand is freed"""
+	# Disconnect all card drag listeners
+	for card in _cards_in_hand:
+		var interaction = card.get_node_or_null("Interaction")
+		if interaction:
+			if interaction.has_signal("drag_ended") and interaction.drag_ended.is_connected(_on_card_drag_ended):
+				interaction.drag_ended.disconnect(_on_card_drag_ended)
+			if interaction.has_signal("card_clicked") and interaction.card_clicked.is_connected(_on_card_clicked):
+				interaction.card_clicked.disconnect(_on_card_clicked)
+			if interaction.has_signal("drag_started") and interaction.drag_started.is_connected(_on_card_drag_started):
+				interaction.drag_started.disconnect(_on_card_drag_started)
+			if interaction.has_signal("drag_position_updated") and interaction.drag_position_updated.is_connected(_on_card_drag_position_updated):
+				interaction.drag_position_updated.disconnect(_on_card_drag_position_updated)
+
+	# Kill any active preview tween
+	if _preview_tween:
+		_preview_tween.kill()
+		_preview_tween = null
+
+	# Clear internal state
+	_cards_in_hand.clear()
+	_dragged_card = null
+	_preview_insert_index = -1

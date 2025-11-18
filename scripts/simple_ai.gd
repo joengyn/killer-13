@@ -237,7 +237,7 @@ static func find_lowest_beating_combo(hand: Hand, table_combo: Array, table_type
 ## @param hand: The AI player's hand
 ## @param table_card: Single card on the table to beat
 ## @return: Array containing one card, or empty if cannot beat
-static func find_lowest_beating_single(hand: Hand, table_card: Card) -> Array:
+static func find_lowest_beating_single(hand: Hand, table_card: Card) -> Array[Card]:
 	var lowest: Card = null
 	for card in hand.cards:
 		if card.beats(table_card):
@@ -252,7 +252,7 @@ static func find_lowest_beating_single(hand: Hand, table_card: Card) -> Array:
 ## @param hand: The AI player's hand
 ## @param table_combo: Pair on the table to beat
 ## @return: Array containing two cards of same rank, or empty if cannot beat
-static func find_lowest_beating_pair(hand: Hand, table_combo: Array) -> Array:
+static func find_lowest_beating_pair(hand: Hand, table_combo: Array) -> Array[Card]:
 	var table_rank = (table_combo[0] as Card).rank
 
 	# Find all pairs in hand
@@ -267,7 +267,7 @@ static func find_lowest_beating_pair(hand: Hand, table_combo: Array) -> Array:
 ## @param hand: The AI player's hand
 ## @param table_combo: Triple on the table to beat
 ## @return: Array containing three cards of same rank, or empty if cannot beat
-static func find_lowest_beating_triple(hand: Hand, table_combo: Array) -> Array:
+static func find_lowest_beating_triple(hand: Hand, table_combo: Array) -> Array[Card]:
 	var table_rank = (table_combo[0] as Card).rank
 
 	# Find all triples in hand
@@ -283,7 +283,7 @@ static func find_lowest_beating_triple(hand: Hand, table_combo: Array) -> Array:
 ## @param hand: The AI player's hand
 ## @param table_combo: Straight on the table to beat
 ## @return: Array of cards forming a straight, or empty if cannot beat
-static func find_lowest_beating_straight(hand: Hand, table_combo: Array) -> Array:
+static func find_lowest_beating_straight(hand: Hand, table_combo: Array) -> Array[Card]:
 	var table_len = table_combo.size()
 	var table_high_rank = (table_combo[-1] as Card).rank
 
@@ -312,7 +312,7 @@ static func find_lowest_beating_straight(hand: Hand, table_combo: Array) -> Arra
 ## @param start_rank: Starting rank for the straight (Card.Rank enum value)
 ## @param length: Number of consecutive cards needed
 ## @return: Array of cards forming the straight, or empty if cannot build
-static func try_build_straight(hand: Hand, start_rank: int, length: int) -> Array:
+static func try_build_straight(hand: Hand, start_rank: int, length: int) -> Array[Card]:
 	if start_rank + length > 13:
 		return []  # Can't build straight that long from this rank
 
@@ -334,7 +334,7 @@ static func try_build_straight(hand: Hand, start_rank: int, length: int) -> Arra
 ## @param hand: The AI player's hand
 ## @param table_combo: Cards on the table (typically contains a 2)
 ## @return: Array forming a bomb combo, or empty if no bomb available
-static func find_lowest_beating_bomb(hand: Hand, table_combo: Array) -> Array:
+static func find_lowest_beating_bomb(hand: Hand, table_combo: Array) -> Array[Card]:
 	# First, try 4 of a kind
 	for rank in range(0, 13):
 		var cards = hand.get_cards_by_rank(rank)
@@ -383,7 +383,7 @@ static func _find_all_singles(hand: Hand) -> Array:
 
 ## Find the best combination to play when the table is empty
 ## Prioritizes straights > triples > pairs > lowest single
-static func find_best_opening_play(hand: Hand) -> Array:
+static func find_best_opening_play(hand: Hand) -> Array[Card]:
 	# 1. Prioritize playing the lowest single card
 	var lowest_single = hand.get_lowest_card()
 	if lowest_single:
@@ -423,7 +423,7 @@ static func find_best_opening_play(hand: Hand) -> Array:
 ## @param start_rank: Starting rank for the consecutive pairs
 ## @param num_pairs: Number of consecutive pairs needed (minimum 3)
 ## @return: Array of cards forming consecutive pairs, or empty if cannot build
-static func try_build_consecutive_pairs(hand: Hand, start_rank: int, num_pairs: int) -> Array:
+static func try_build_consecutive_pairs(hand: Hand, start_rank: int, num_pairs: int) -> Array[Card]:
 	var pairs: Array[Card] = []
 	for i in range(num_pairs):
 		var rank = start_rank + i

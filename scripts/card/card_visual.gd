@@ -10,13 +10,22 @@ var card: Card
 ## Whether to display the card back instead of the face
 var show_back: bool = false
 
+## ============================================================================
+## CONFIGURATION - Adjustable via Godot Inspector
+## ============================================================================
+
+## Shadow sprite vertical offset for perspective effect
+@export var shadow_vertical_offset: float = 10.0
+## Shadow sprite maximum horizontal offset from card center
+@export var shadow_max_horizontal_offset: float = 12.0
+
+## ============================================================================
+## SCENE REFERENCES
+## ============================================================================
+
 @onready var inner_sprite = $Viewport/InnerSprite
 @onready var outer_sprite = $OuterSprite
 @onready var shadow_sprite = $ShadowSprite
-
-## Shadow effect constants - control the shadow's perspective illusion
-const SHADOW_VERTICAL_OFFSET: float = 10.0  ## Fixed downward offset in pixels
-const SHADOW_MAX_HORIZONTAL_OFFSET: float = 12.0  ## Maximum horizontal shift based on distance from center
 
 ## Cache last global position to avoid redundant shadow calculations
 var _last_shadow_update_pos: Vector2 = Vector2.ZERO
@@ -145,12 +154,12 @@ func _update_shadow_position() -> void:
 	# When card is right of center (distance > 0), shadow shifts right (positive)
 	var horizontal_offset = lerp(
 		0.0,
-		-sign(distance_from_center) * SHADOW_MAX_HORIZONTAL_OFFSET,
+		-sign(distance_from_center) * shadow_max_horizontal_offset,
 		abs(distance_from_center / screen_center.x)
 	)
 
 	# Apply offsets: constant vertical offset + calculated horizontal offset
-	shadow.offset = Vector2(horizontal_offset, SHADOW_VERTICAL_OFFSET)
+	shadow.offset = Vector2(horizontal_offset, shadow_vertical_offset)
 
 
 ## Get the shadow sprite node (handles @tool mode where @onready may not execute)

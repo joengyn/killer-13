@@ -220,8 +220,8 @@ func animate_deal_sequence() -> void:
 			_cards_dealt += 1
 			_populate_dealt_cards(_cards_dealt)
 
-			# Minimal delay between cards (2x faster)
-			await get_tree().create_timer(0.015).timeout
+			# Minimal delay between cards for animation pacing
+			await get_tree().create_timer(Constants.DEAL_CARD_INTERVAL).timeout
 
 	# After dealing is complete, clean up animated cards and hide the deck
 	if _deck and _deck.has_method("cleanup_dealt_cards"):
@@ -264,7 +264,8 @@ func _populate_dealt_cards(num_cards_dealt: int) -> void:
 	# Add new cards to player hand if count increased
 	if _player_hand and _player_hand.has_method("add_card"):
 		for i in range(_prev_player_counts[0], player_counts[0]):
-			var _card_visual = _player_hand.add_card(players[0].cards[i])
+			if i < players[0].cards.size():
+				var _card_visual = _player_hand.add_card(players[0].cards[i])
 
 
 	# Add new cards to CPU hands if count increased
@@ -560,6 +561,9 @@ func _animate_ai_cards_to_table(player_idx: int, cards: Array) -> void:
 		if cpu_hand._cards.size() > 0:
 			var card_visual = cpu_hand._cards.pop_back()
 
+			# Reset rotation (cards have rotation from dealing animation)
+			card_visual.rotation = 0.0
+
 			# Set the card data to match logical card
 			if i < cards.size() and card_visual.has_method("set_card"):
 				card_visual.set_card(cards[i])
@@ -804,3 +808,37 @@ func _on_player_0_set_zone_updated(_cards: Array[Card]) -> void:
 	# The visual update (moving cards from attack zone to set zone) is already handled by _on_play_pressed
 	# and _play_zone.commit_atk_to_set(). This signal serves as a confirmation/trigger for other UI elements if needed.
 	pass
+
+
+func _exit_tree() -> void:
+	"""Clean up signal connections when GameScreen is freed"""
+	if not _game_manager:
+		return
+
+	# Disconnect GameManager signals
+	if _game_manager.turn_changed.is_connected(_on_turn_changed):
+		_game_manager.turn_changed.disconnect(_on_turn_changed)
+	if _game_manager.round_started.is_connected(_on_round_started):
+		_game_manager.round_started.disconnect(_on_round_started)
+	if _game_manager.round_ended.is_connected(_on_round_ended):
+		_game_manager.round_ended.disconnect(_on_round_ended)
+	if _game_manager.game_ended.is_connected(_on_game_ended):
+		_game_manager.game_ended.disconnect(_on_game_ended)
+	if _game_manager.invalid_play_attempted.is_connected(_on_invalid_play_attempted):
+		_game_manager.invalid_play_attempted.disconnect(_on_invalid_play_attempted)
+	if _game_manager.player_passed.is_connected(_on_player_passed_visual):
+		_game_manager.player_passed.disconnect(_on_player_passed_visual)
+	if _game_manager.game_reset.is_connected(_on_game_reset):
+		_game_manager.game_reset.disconnect(_on_game_reset)
+	if _game_manager.ai_turn_started.is_connected(_on_ai_turn_started):
+		_game_manager.ai_turn_started.disconnect(_on_ai_turn_started)
+	if _game_manager.hand_updated.is_connected(_on_hand_updated):
+		_game_manager.hand_updated.disconnect(_on_hand_updated)
+	if _game_manager.player_0_attack_zone_updated.is_connected(_on_player_0_attack_zone_updated):
+		_game_manager.player_0_attack_zone_updated.disconnect(_on_player_0_attack_zone_updated)
+	if _game_manager.player_0_set_zone_updated.is_connected(_on_player_0_set_zone_updated):
+		_game_manager.player_0_set_zone_updated.disconnect(_on_player_0_set_zone_updated)
+
+	# Disconnect PlayerHand signals
+	if _player_hand and _player_hand.auto_sort_disabled.is_connected(_on_player_hand_auto_sort_disabled):
+		_player_hand.auto_sort_disabled.disconnect(_on_player_hand_auto_sort_disabled)

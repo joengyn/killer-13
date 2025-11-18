@@ -121,7 +121,7 @@ func get_cards_after_removing(cards_to_remove: Array[Card]) -> Array[Card]:
 	var temp_cards = cards.duplicate(true) # Deep duplicate to avoid modifying original Card objects
 	for card_to_remove in cards_to_remove:
 		for i in range(temp_cards.size()):
-			if temp_cards[i].is_equal_to(card_to_remove):
+			if temp_cards[i].equals(card_to_remove):
 				temp_cards.remove_at(i)
 				break
 	return temp_cards

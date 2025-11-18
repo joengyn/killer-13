@@ -20,6 +20,7 @@ config/icon="res://icon.svg"
 Constants="*res://scripts/constants.gd"
 CardLoader="*res://scripts/card/card_loader.gd"
 GameManager="*res://scripts/game_manager.gd"
+CardPool="*res://scripts/card_pool.gd"
 
 [display]
 

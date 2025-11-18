@@ -30,6 +30,47 @@ const HAND_PREVIEW_GAP: float = 195.0
 const HAND_BOUNDS_PADDING: float = 20.0
 
 ## ============================================================================
+## PLAY ZONE CONFIGURATION
+## ============================================================================
+
+## Gap between cards in the play zone
+const PLAY_ZONE_CARD_GAP: float = 20.0
+## Maximum width for cards in the play zone (based on 13 cards)
+const PLAY_ZONE_MAX_WIDTH: float = 1604.0
+
+## ============================================================================
+## CPU HAND CONFIGURATION
+## ============================================================================
+
+## Horizontal spacing between CPU hand cards
+const CPU_HAND_CARD_SPACING: float = 60.0
+
+## ============================================================================
+## CARD INTERACTION CONFIGURATION
+## ============================================================================
+
+## Cooldown frames for click detection to prevent rapid clicks
+const CARD_CLICK_COOLDOWN_FRAMES: int = 10
+
+## ============================================================================
+## CARD VISUAL CONFIGURATION
+## ============================================================================
+
+## Shadow sprite vertical offset for perspective effect
+const CARD_SHADOW_VERTICAL_OFFSET: float = 10.0
+## Shadow sprite maximum horizontal offset from card center
+const CARD_SHADOW_MAX_HORIZONTAL_OFFSET: float = 12.0
+
+## ============================================================================
+## DEALING CONFIGURATION
+## ============================================================================
+
+## Card count threshold for card dealing (last 5 cards pop from deck, first 47 are instantiated)
+const DEALING_INSTANTIATE_THRESHOLD: int = 47
+## Delay between card deals in seconds (for animation pacing)
+const DEAL_CARD_INTERVAL: float = 0.015
+
+## ============================================================================
 ## SPRITESHEET CONFIGURATION
 ## ============================================================================
 

@@ -1,7 +1,25 @@
 extends Node2D
 ## CPUHand - Displays opponent cards (all face-down, no interaction)
 
-const CARD_SPACING: float = 60.0  # Horizontal spacing between cards
+## ============================================================================
+## CONFIGURATION - Adjustable via Godot Inspector
+## ============================================================================
+
+## Duration for animating hand to center
+@export var animate_to_center_duration: float = 0.3
+## Scale multiplier when hand is animated to center
+@export var center_scale_multiplier: float = 1.1
+## Duration for animating hand back to original position
+@export var animate_to_original_duration: float = 0.3
+## Offset amount when moving toward center (in pixels)
+@export var center_offset_amount: float = 100.0
+
+## ============================================================================
+## DERIVED VALUES
+## ============================================================================
+
+var CARD_SPACING: float:
+	get: return Constants.CPU_HAND_CARD_SPACING
 
 var _cards: Array[Node] = []  # Track current cards in hand
 var _original_position: Vector2 # Store the original position of the hand
@@ -32,7 +50,7 @@ func _arrange_cards() -> void:
 
 func add_card() -> void:
 	"""Add a single card back to the hand (used during dealing)"""
-	var card_visual = preload("res://scenes/card.tscn").instantiate() as Node
+	var card_visual = CardPool.get_card()
 	add_child(card_visual)
 
 	# Set to show back
@@ -70,7 +88,7 @@ func clear_and_set_count(count: int) -> void:
 
 	# Create new card back visuals
 	for idx in range(count):
-		var card_visual = preload("res://scenes/card.tscn").instantiate() as Node
+		var card_visual = CardPool.get_card()
 		add_child(card_visual)
 
 		# Set to show back
@@ -97,8 +115,11 @@ func clear_and_set_count(count: int) -> void:
 	_arrange_cards()
 
 
-func animate_to_center(duration: float = 0.3) -> void:
+func animate_to_center(duration: float = -1.0) -> void:
 	"""Animates the CPU hand towards the center of the screen."""
+	if duration < 0:
+		duration = animate_to_center_duration
+
 	var tween = create_tween()
 	tween.set_ease(Tween.EASE_OUT)
 	tween.set_trans(Tween.TRANS_QUAD)
@@ -107,16 +128,18 @@ func animate_to_center(duration: float = 0.3) -> void:
 	# Assuming screen center is (960, 540) for a 1920x1080 resolution
 	var screen_center = Vector2(960, 540)
 	var direction_to_center = (screen_center - global_position).normalized()
-	var offset_amount = 100 # Pixels to offset
 
-	var target_position = _original_position + direction_to_center * offset_amount
-	
+	var target_position = _original_position + direction_to_center * center_offset_amount
+
 	tween.tween_property(self, "position", target_position, duration)
-	tween.tween_property(self, "scale", Vector2(1.1, 1.1), duration)
+	tween.tween_property(self, "scale", Vector2(center_scale_multiplier, center_scale_multiplier), duration)
 
 
-func animate_to_original_position(duration: float = 0.3) -> void:
+func animate_to_original_position(duration: float = -1.0) -> void:
 	"""Animates the CPU hand back to its original position."""
+	if duration < 0:
+		duration = animate_to_original_duration
+
 	var tween = create_tween()
 	tween.set_ease(Tween.EASE_OUT)
 	tween.set_trans(Tween.TRANS_QUAD)
@@ -127,5 +150,14 @@ func clear_all_cards() -> void:
 	"""Removes all cards from the CPU hand."""
 	for card in _cards:
 		card.queue_free()
+	_cards.clear()
+
+
+func _exit_tree() -> void:
+	"""Clean up all resources when CPUHand is freed"""
+	# Clear all cards
+	for card in _cards:
+		if is_instance_valid(card):
+			card.queue_free()
 	_cards.clear()
 
