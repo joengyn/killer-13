@@ -1,3 +1,4 @@
+@tool
 extends Node
 ## CardLoader - Singleton autoload that manages card sprite atlases from spritesheet
 ##

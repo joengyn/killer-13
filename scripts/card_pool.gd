@@ -1,3 +1,4 @@
+@tool
 extends Node
 ## CardPool - Object pooling for card instances to reduce GC pressure
 ##
