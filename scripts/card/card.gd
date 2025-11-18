@@ -34,26 +34,32 @@ var rank: Rank
 var suit: Suit
 
 ## Construct a card with the given rank and suit
+## @param p_rank: Card rank (THREE through TWO)
+## @param p_suit: Card suit (SPADES through HEARTS)
 func _init(p_rank: Rank, p_suit: Suit) -> void:
 	rank = p_rank
 	suit = p_suit
 
 ## Convert rank enum to string symbol (e.g., THREE->"3", JACK->"J", TWO->"2")
+## @return: String representation of rank ("3" through "2", with "J", "Q", "K", "A")
 func rank_to_string() -> String:
 	var rank_names = ["3", "4", "5", "6", "7", "8", "9", "10", "J", "Q", "K", "A", "2"]
 	return rank_names[rank] if rank >= 0 and rank < rank_names.size() else ""
 
 ## Convert suit enum to symbol (♠, ♣, ♦, ♥)
+## @return: Unicode symbol for the suit
 func suit_to_string() -> String:
 	var suit_names = ["♠", "♣", "♦", "♥"]
 	return suit_names[suit] if suit >= 0 and suit < suit_names.size() else ""
 
 ## Get full card representation (e.g., "3♠", "K♥", "2♣")
+## @return: String combining rank and suit symbols
 func _to_string() -> String:
 	return rank_to_string() + suit_to_string()
 
 ## Compare this card to another card by rank, then suit for tiebreaking
-## Returns: 1 if this > other, -1 if this < other, 0 if equal
+## @param other: Card to compare against
+## @return: 1 if this > other, -1 if this < other, 0 if equal
 func compare_to(other: Card) -> int:
 	if rank != other.rank:
 		return 1 if rank > other.rank else -1
@@ -65,18 +71,23 @@ func compare_to(other: Card) -> int:
 		return 0
 
 ## Check if this card beats another single card in ranking
+## @param other: Card to compare against
+## @return: True if this card ranks higher than the other
 func beats(other: Card) -> bool:
 	return compare_to(other) > 0
 
 ## Check if this card is a numbered card (3-10)
+## @return: True if rank is between THREE and TEN
 func is_number() -> bool:
 	return rank >= Rank.THREE and rank <= Rank.TEN
 
 ## Check if this card is a face card (J, Q, K, A)
+## @return: True if rank is JACK, QUEEN, KING, or ACE
 func is_face() -> bool:
 	return rank >= Rank.JACK and rank <= Rank.ACE
 
 ## Get numeric height for sorting (3=3, 4=4, ..., J=11, Q=12, K=13, A=14, 2=15)
+## @return: Integer value representing card rank for sorting/comparison
 func get_height() -> int:
 	if rank == Rank.TWO:
 		return 15
@@ -86,27 +97,37 @@ func get_height() -> int:
 		return rank + 3
 
 ## Check if this card is the 3 of Spades (required to start the game)
+## @return: True if this is the 3♠ card
 func is_three_of_spades() -> bool:
 	return rank == Rank.THREE and suit == Suit.SPADES
 
 ## Check if this card is a 2 (highest non-bomb single card)
+## @return: True if rank is TWO
 func is_two() -> bool:
 	return rank == Rank.TWO
 
 ## Check if this card is identical to another card
+## @param other: Card to compare against
+## @return: True if both rank and suit match
 func equals(other: Card) -> bool:
 	return rank == other.rank and suit == other.suit
 
 ## Hash the card for use in dictionaries or sets
+## @return: Integer hash value based on rank and suit
 func _hash() -> int:
 	return hash([rank, suit])
 
 ## Support the == operator for card comparison
+## @param other: Object to compare against
+## @return: True if other is a Card with matching rank and suit
 func _equal(other) -> bool:
 	return other is Card and equals(other)
 
 
 ## Static function to be used with sort_custom for Card objects. Returns true if a < b.
+## @param a: First card to compare
+## @param b: Second card to compare
+## @return: True if a ranks lower than b (by rank, then suit)
 static func compare_cards_lt(a: Card, b: Card) -> bool:
 	if a.rank != b.rank:
 		return a.rank < b.rank
@@ -114,6 +135,9 @@ static func compare_cards_lt(a: Card, b: Card) -> bool:
 
 
 ## Static function to be used with sort_custom for Node objects that have a get_card() method.
+## @param a: First node (expected to have get_card() method)
+## @param b: Second node (expected to have get_card() method)
+## @return: True if a's card ranks lower than b's card
 static func compare_card_nodes_lt(a: Node, b: Node) -> bool:
 	var card_a: Card = a.get_card() if a.has_method("get_card") else null
 	var card_b: Card = b.get_card() if b.has_method("get_card") else null
@@ -131,6 +155,8 @@ static func compare_card_nodes_lt(a: Node, b: Node) -> bool:
 
 
 ## Create a card from a string representation (e.g., "3S", "KH", "A♠")
+## @param card_str: String representation of card (rank + suit symbol/letter)
+## @return: Card object, or null if string is invalid
 static func from_string(card_str: String) -> Card:
 	if card_str.is_empty():
 		return null

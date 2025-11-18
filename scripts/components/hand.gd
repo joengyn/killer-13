@@ -5,9 +5,17 @@ class_name Hand
 ## sorted by rank (3 lowest, 2 highest), with suit as tiebreaker (Spades → Hearts).
 ## Provides methods for querying, adding, removing, and analyzing cards.
 
+## ============================================================================
+## STATE
+## ============================================================================
+
 ## Array of Card objects in this hand (always kept sorted)
 var cards: Array[Card] = []
 var _needs_sort: bool = false
+
+## ============================================================================
+## LIFECYCLE
+## ============================================================================
 
 ## Initialize a new hand with the given cards and sort them
 ## @param initial_cards: Array of Card objects to start with
@@ -15,6 +23,10 @@ func _init(initial_cards: Array[Card]) -> void:
 	for card in initial_cards:
 		cards.append(card as Card)
 	_needs_sort = true
+
+## ============================================================================
+## PUBLIC API - Card Management
+## ============================================================================
 
 ## Sort the hand by rank (ascending), then suit (Spades → Hearts)
 ## Called automatically after adding or removing cards
@@ -66,6 +78,10 @@ func remove_cards(played_cards: Array) -> bool:
 
 	_needs_sort = true
 	return true
+
+## ============================================================================
+## PUBLIC API - Querying
+## ============================================================================
 
 ## Get the sorted cards, sorting only if necessary
 ## @return: Array of Card objects, guaranteed to be sorted

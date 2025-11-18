@@ -4,20 +4,24 @@ class_name Deck
 ## Handles deck creation (all combinations of 13 ranks × 4 suits),
 ## shuffling (Fisher-Yates algorithm), and dealing to multiple players.
 
+## ============================================================================
+## STATE
+## ============================================================================
+
 ## Array of all 52 Card objects in the deck
 var cards: Array[Card] = []
+
+## ============================================================================
+## LIFECYCLE
+## ============================================================================
 
 ## Initialize a new deck with all 52 cards
 func _init() -> void:
 	_create_deck()
 
-## Internal: Create all 52 cards (13 ranks × 4 suits)
-func _create_deck() -> void:
-	for suit in [Card.Suit.SPADES, Card.Suit.HEARTS, Card.Suit.DIAMONDS, Card.Suit.CLUBS]:
-		for rank in [Card.Rank.THREE, Card.Rank.FOUR, Card.Rank.FIVE, Card.Rank.SIX,
-					 Card.Rank.SEVEN, Card.Rank.EIGHT, Card.Rank.NINE, Card.Rank.TEN,
-					 Card.Rank.JACK, Card.Rank.QUEEN, Card.Rank.KING, Card.Rank.ACE, Card.Rank.TWO]:
-			cards.append(Card.new(rank, suit))
+## ============================================================================
+## PUBLIC API
+## ============================================================================
 
 ## Shuffle the deck using Fisher-Yates algorithm (randomizes card order)
 func shuffle() -> void:
@@ -47,3 +51,15 @@ func deal(num_players: int) -> Array:
 				card_idx += 1
 
 	return hands
+
+## ============================================================================
+## HELPERS
+## ============================================================================
+
+## Internal: Create all 52 cards (13 ranks × 4 suits)
+func _create_deck() -> void:
+	for suit in [Card.Suit.SPADES, Card.Suit.HEARTS, Card.Suit.DIAMONDS, Card.Suit.CLUBS]:
+		for rank in [Card.Rank.THREE, Card.Rank.FOUR, Card.Rank.FIVE, Card.Rank.SIX,
+					 Card.Rank.SEVEN, Card.Rank.EIGHT, Card.Rank.NINE, Card.Rank.TEN,
+					 Card.Rank.JACK, Card.Rank.QUEEN, Card.Rank.KING, Card.Rank.ACE, Card.Rank.TWO]:
+			cards.append(Card.new(rank, suit))

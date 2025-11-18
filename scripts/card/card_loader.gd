@@ -14,6 +14,10 @@ extends Node
 ## - Rows 0-3: Light mode (Heart, Spade, Diamond, Club)
 ## - Rows 4-7: Dark mode (Heart, Spade, Diamond, Club) - DEFAULT
 
+## ============================================================================
+## STATE
+## ============================================================================
+
 ## Dictionary mapping "rank_suit" keys to AtlasTexture sprites (e.g., "0_1" = THREE of CLUBS)
 var card_sprites: Dictionary = {}
 ## AtlasTexture for the card back (column 0, respecting current theme)
@@ -23,8 +27,16 @@ var texture: Texture2D
 ## Whether to use dark mode (true) or light mode (false) for cards
 var use_dark_mode: bool = true
 
+## ============================================================================
+## LIFECYCLE
+## ============================================================================
+
 func _ready() -> void:
 	load_sprites()
+
+## ============================================================================
+## PUBLIC API
+## ============================================================================
 
 ## Load all card sprites from the spritesheet and populate the card_sprites dictionary
 func load_sprites() -> void:
@@ -89,7 +101,6 @@ func load_sprites() -> void:
 	var back_row = 0 + theme_offset  # Card back in row 0, offset by theme
 	back_atlas.region = Rect2(0, (back_row * card_height), card_width, card_height)
 	card_back_sprite = back_atlas
-
 
 ## Get the sprite atlas for a specific card
 ## @param rank: Card.Rank enum value (0-12, where THREE=0, TWO=12)

@@ -5,6 +5,10 @@ extends Node2D
 ## Manages the visual representation of a Card, including sprite loading, viewport rendering,
 ## and dynamic shadow positioning based on screen position. Supports @tool mode for editor preview.
 
+## ============================================================================
+## STATE
+## ============================================================================
+
 ## The Card data this visual represents (rank + suit)
 var card: Card
 ## Whether to display the card back instead of the face
@@ -30,6 +34,10 @@ var show_back: bool = false
 ## Cache last global position to avoid redundant shadow calculations
 var _last_shadow_update_pos: Vector2 = Vector2.ZERO
 
+## ============================================================================
+## LIFECYCLE
+## ============================================================================
+
 
 func _ready():
 	# Duplicate the shader material so each card instance has its own
@@ -45,6 +53,9 @@ func _ready():
 	# Always load sprite (card back or face)
 	_load_sprite()
 
+## ============================================================================
+## PUBLIC API
+## ============================================================================
 
 ## Set which card this visual should display and reload the sprite
 ## @param new_card: The Card data (rank + suit) to display
@@ -72,6 +83,9 @@ func set_shadow_visible(show_shadow: bool) -> void:
 	if shadow:
 		shadow.visible = show_shadow
 
+## ============================================================================
+## HELPERS
+## ============================================================================
 
 ## Get the inner sprite node (handles @tool mode where @onready may not execute)
 ## @return: The inner Sprite2D that displays the card texture
@@ -118,6 +132,9 @@ func _load_sprite() -> void:
 	if sprite_texture:
 		spr.texture = sprite_texture
 
+## ============================================================================
+## PROCESS
+## ============================================================================
 
 ## Update shadow position each frame if card has moved
 ## Only recalculates when position changes to optimize performance
