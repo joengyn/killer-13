@@ -1,4 +1,3 @@
-@tool
 extends Node
 ## CardInteraction - Manages player input, hover effects, and drag-and-drop for card visuals
 ##
@@ -172,7 +171,7 @@ func _on_click_area_input(_viewport: Node, event: InputEvent, _shape_idx: int):
 				_last_clicked_card = card_visual
 				_last_clicked_frame = current_frame
 
-				if can_move_out_of_hand:
+				if is_player_card:
 					card_clicked.emit(card_visual)
 			_mouse_pressed = false
 		get_tree().root.set_input_as_handled()
@@ -184,7 +183,7 @@ func _unhandled_input(event: InputEvent):
 		if _mouse_pressed and not _is_being_dragged and is_player_card:
 			var current_global_mouse = get_viewport().get_canvas_transform().affine_inverse() * get_viewport().get_mouse_position()
 			var drag_distance = current_global_mouse.distance_to(_mouse_press_position)
-			if drag_distance > 5.0 and can_move_out_of_hand:  # Threshold to start drag (5 pixels)
+			if drag_distance > 5.0 and is_player_card:  # Threshold to start drag (5 pixels)
 				_start_drag(_mouse_press_position)
 
 		if _is_being_dragged:
@@ -267,7 +266,7 @@ func _end_drag() -> void:
 	_any_card_being_dragged = null  # Clear global drag tracking
 	_mouse_pressed = false  # Reset mouse state
 	_drag_offset = Vector2.ZERO  # Clear drag offset to prevent further movement
-	card_visual.z_index = 0  # Reset z-index immediately to restore normal hover detection
+	# Note: z_index will be reset by PlayerHand.rearrange_cards_in_hand() after repositioning
 
 	drag_ended.emit(card_visual)
 

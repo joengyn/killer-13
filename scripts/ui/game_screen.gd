@@ -124,8 +124,12 @@ func _ready() -> void:
 		if not player_action_complete.is_connected(_game_manager._on_player_action_complete):
 			player_action_complete.connect(_game_manager._on_player_action_complete)
 
-	# Connect to PlayerHand card interaction signals
+	# Connect to PlayerHand card interaction signals (via CardDragHandler)
 	if _player_hand:
+		# Wait for CardDragHandler to be created in PlayerHand's _ready()
+		await get_tree().process_frame
+
+		# CardDragHandler signals are forwarded through PlayerHand, so we connect to PlayerHand
 		if _player_hand.has_signal("card_dragged_out"):
 			_player_hand.card_dragged_out.connect(_on_card_dragged_out_from_hand)
 		if _player_hand.has_signal("card_clicked"):
@@ -201,7 +205,7 @@ func _start_game_immediately() -> void:
 	if _player_hand and _player_hand.has_method("clear_and_populate"):
 		_player_hand.clear_and_populate(players[0].get_sorted_cards())
 		_player_hand.auto_sort_enabled = _auto_sort_enabled
-		_player_hand.set_cards_interactive(true)
+		_player_hand.set_cards_interactive(false, false)
 
 	# Populate CPU hands with correct card counts
 	# Player 1 = CPU Left, Player 2 = CPU Top, Player 3 = CPU Right
@@ -285,7 +289,7 @@ func animate_deal_sequence() -> void:
 	if _player_hand and _player_hand.has_method("clear_and_populate"):
 		_player_hand.clear_and_populate(_game_manager.players[0].get_sorted_cards())
 		_player_hand.auto_sort_enabled = _auto_sort_enabled
-		_player_hand.set_cards_interactive(true)
+		_player_hand.set_cards_interactive(false, false)
 
 	_show_action_buttons()
 
@@ -384,7 +388,10 @@ func _on_sort_button_pressed() -> void:
 					sorted_hand_cards.append(card)
 
 			_player_hand.clear_and_populate(sorted_hand_cards)
-			_player_hand.set_cards_interactive(true)
+			var is_player_turn = (_game_manager.game_state.current_player == 0)
+			var has_passed = _game_manager.has_player_passed()
+			var can_play = is_player_turn and not has_passed
+			_player_hand.set_cards_interactive(true, can_play)
 
 
 func _update_sort_button_text() -> void:
@@ -519,11 +526,8 @@ func _move_card_to_play_zone(card: Node) -> void:
 	## The card's data remains in GameManager; this only updates visuals.
 
 	# Remove from player hand's visual tracking
-	_player_hand._cards_in_hand.erase(card)
-	_player_hand._update_z_indices()
-
-	# Rearrange remaining cards in hand
-	_player_hand._arrange_cards()
+	_player_hand.remove_card_visual(card)
+	_player_hand.rearrange_cards_in_hand()
 
 	# Add to play zone as attack card (handles reparenting and scaling)
 	# Player 0 is the human player
@@ -574,18 +578,20 @@ func _on_turn_changed(player_idx: int) -> void:
 	if _game_manager:
 		has_passed = _game_manager.has_player_passed()
 
-	# Allow card interaction only on player's turn and if they haven't passed
-	var can_interact_with_cards = is_player_turn and not has_passed
+	# Player can always reorder their hand, but can only play on their turn.
+	var can_play_cards = is_player_turn and not has_passed
 	if _player_hand:
-		_player_hand.set_cards_interactive(can_interact_with_cards)
+		_player_hand.set_cards_interactive(true, can_play_cards)
+	
+	# Atk cards in the play zone should only be interactive on the player's turn.
 	if _play_zone:
-		_play_zone.set_cards_interactive(can_interact_with_cards)
+		_play_zone.set_cards_interactive(can_play_cards)
 
 	# Enable/disable action buttons accordingly
 	if _play_button:
-		_play_button.disabled = !is_player_turn or has_passed
+		_play_button.disabled = not can_play_cards
 	if _pass_button:
-		_pass_button.disabled = !is_player_turn or has_passed
+		_pass_button.disabled = not can_play_cards
 
 
 func _on_play_pressed() -> void:
@@ -795,7 +801,7 @@ func _on_game_ended(winner_idx: int) -> void:
 	await get_tree().create_timer(0.4).timeout
 	_hide_action_buttons()
 	if _player_hand:
-		_player_hand.set_cards_interactive(false)
+		_player_hand.set_cards_interactive(false, false)
 	if _play_zone:
 		_play_zone.set_cards_interactive(false)
 	if _game_over_modal and _game_over_label:
@@ -810,11 +816,10 @@ func _on_game_reset() -> void:
 	## Handle visual reset when returning to the start screen.
 	## Clears all cards, resets UI state, and shows the deck/start button again.
 
-	# Re-enable player interaction
 	if _player_hand:
-		_player_hand.set_cards_interactive(true)
+		_player_hand.set_cards_interactive(false, false)
 	if _play_zone:
-		_play_zone.set_cards_interactive(true)
+		_play_zone.set_cards_interactive(false)
 
 	# Clear all visual cards
 	if _play_zone and _play_zone.has_method("clear_all_cards"):
@@ -1010,7 +1015,6 @@ func _on_hand_updated(player_index: int, cards: Array[Card]) -> void:
 			if _player_hand and _player_hand.has_method("clear_and_populate"):
 				_player_hand.clear_and_populate(cards)
 				_player_hand.auto_sort_enabled = _auto_sort_enabled
-				_player_hand.set_cards_interactive(true)
 		else:
 			# Auto-sort disabled: update without changing visual order
 			if _player_hand and _player_hand.has_method("update_visual_cards_after_play"):

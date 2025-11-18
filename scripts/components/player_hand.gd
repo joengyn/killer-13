@@ -1,5 +1,6 @@
 @tool
 extends Node2D
+class_name PlayerHand
 ## PlayerHand - Interactive card hand management for the human player
 ##
 ## This component manages the player's hand of cards with sophisticated drag-and-drop
@@ -27,6 +28,9 @@ extends Node2D
 ## GameScreen listens to this to move cards from hand to PlayZone
 signal card_dragged_out(card_visual: Node)
 
+## Emitted when a card is clicked in the hand
+signal card_clicked(card_visual: Node)
+
 ## Emitted when any card drag starts (whether staying in hand or going to PlayZone)
 ## Used by GameScreen to coordinate drag state across components
 signal card_drag_started(card_visual: Node)
@@ -34,14 +38,6 @@ signal card_drag_started(card_visual: Node)
 ## Emitted when the player manually reorders cards (disables auto-sort)
 ## Tells GameScreen that the player prefers their custom arrangement
 signal auto_sort_disabled
-
-# ============================================================================
-# EXPORTS - Tunable Parameters
-# ============================================================================
-
-## Interval between drag preview updates (lower = smoother but more CPU intensive)
-## At 0.05s (20fps), provides smooth visual feedback without excessive processing
-@export var preview_update_interval: float = 0.05
 
 # ============================================================================
 # CONSTANTS
@@ -62,21 +58,11 @@ var _cards_in_hand: Array[Node] = []
 ## Flag indicating this component handles bounds checking (for GameScreen coordination)
 var handles_bounds_checking: bool = true
 
-## Currently dragged card reference (null when no drag in progress)
-var _dragged_card: Node = null
-
-## Preview insertion index (-1 when no preview active)
-## This is where the dragged card will be inserted if dropped at current position
-var _preview_insert_index: int = -1
-
-## Active tween for preview animations (null when no animation running)
-var _preview_tween: Tween = null
-
-## Timestamp of last preview update (for throttling updates)
-var _last_preview_update: float = 0.0
-
 ## Whether auto-sort is enabled (disabled when player manually reorders cards)
 var auto_sort_enabled: bool = true
+
+## Reference to the CardDragHandler child node
+var _card_drag_handler: CardDragHandler = null
 
 # ============================================================================
 # LIFECYCLE METHODS
@@ -93,36 +79,26 @@ func _ready() -> void:
 		# Part of the actual game - clear any preview cards from the scene file
 		# Real cards will be added later during the dealing phase
 		for child in get_children():
+			# Skip CardDragHandler if it already exists from scene
+			if child is CardDragHandler:
+				continue
 			child.queue_free()
 
-	# Set up drag monitoring for runtime (not needed in editor)
-	if not Engine.is_editor_hint():
-		_setup_drag_listeners()
+		# Set up CardDragHandler for runtime drag-and-drop
+		_card_drag_handler = CardDragHandler.new()
+		add_child(_card_drag_handler)
+
+		# Connect CardDragHandler signals to PlayerHand signals for GameScreen coordination
+		_card_drag_handler.card_dragged_out.connect(card_dragged_out.emit)
+		_card_drag_handler.card_clicked.connect(card_clicked.emit)
+		_card_drag_handler.card_drag_started.connect(card_drag_started.emit)
+		_card_drag_handler.auto_sort_disabled.connect(auto_sort_disabled.emit)
 
 func _exit_tree() -> void:
 	## Clean up all resources when PlayerHand is freed
-	# Disconnect all card drag listeners to prevent memory leaks
-	for card in _cards_in_hand:
-		var interaction = card.get_node_or_null("Interaction")
-		if interaction:
-			if interaction.has_signal("drag_ended") and interaction.drag_ended.is_connected(_on_card_drag_ended):
-				interaction.drag_ended.disconnect(_on_card_drag_ended)
-			if interaction.has_signal("card_clicked") and interaction.card_clicked.is_connected(_on_card_clicked):
-				interaction.card_clicked.disconnect(_on_card_clicked)
-			if interaction.has_signal("drag_started") and interaction.drag_started.is_connected(_on_card_drag_started):
-				interaction.drag_started.disconnect(_on_card_drag_started)
-			if interaction.has_signal("drag_position_updated") and interaction.drag_position_updated.is_connected(_on_card_drag_position_updated):
-				interaction.drag_position_updated.disconnect(_on_card_drag_position_updated)
-
-	# Kill any active preview tween
-	if _preview_tween:
-		_preview_tween.kill()
-		_preview_tween = null
-
-	# Clear internal state
+	# CardDragHandler child will handle its own cleanup
+	# Just clear the internal card array
 	_cards_in_hand.clear()
-	_dragged_card = null
-	_preview_insert_index = -1
 
 # ============================================================================
 # PUBLIC API - Card Management
@@ -148,7 +124,7 @@ func add_card(card_data: Card) -> Node:
 	if interaction:
 		# Verify this is actually a CardInteraction node before setting properties
 		if interaction.get_script() and str(interaction.get_script().resource_path).ends_with("card_interaction.gd"):
-			interaction.is_player_card = true
+			interaction.set_interactive(false, false)
 		# Update base position for hover animations
 		if interaction.has_method("update_base_position"):
 			interaction.update_base_position()
@@ -177,9 +153,12 @@ func clear_and_populate(cards: Array[Card]) -> void:
 	##
 	## @param cards: Array of Card data to populate the hand with
 
-	# Remove all existing card nodes
-	for card in get_children():
-		card.queue_free()
+	# Remove all existing card nodes, but preserve CardDragHandler
+	for child in get_children():
+		# Skip CardDragHandler - it must persist throughout the game
+		if child is CardDragHandler:
+			continue
+		child.queue_free()
 
 	_cards_in_hand.clear()
 
@@ -198,7 +177,7 @@ func clear_and_populate(cards: Array[Card]) -> void:
 		if interaction:
 			# Verify this is actually a CardInteraction node before setting properties
 			if interaction.get_script() and str(interaction.get_script().resource_path).ends_with("card_interaction.gd"):
-				interaction.is_player_card = true
+				interaction.set_interactive(false, false)
 			# Update base position for hover animations
 			if interaction.has_method("update_base_position"):
 				interaction.update_base_position()
@@ -272,7 +251,7 @@ func update_visual_cards_after_play(new_logical_cards: Array[Card]) -> void:
 			var interaction = card_visual.get_node_or_null("Interaction")
 			if interaction:
 				if interaction.get_script() and str(interaction.get_script().resource_path).ends_with("card_interaction.gd"):
-					interaction.is_player_card = true
+					interaction.set_interactive(false, false)
 				if interaction.has_method("update_base_position"):
 					interaction.update_base_position()
 
@@ -286,25 +265,23 @@ func update_visual_cards_after_play(new_logical_cards: Array[Card]) -> void:
 	_update_z_indices()
 	_arrange_cards()
 
-func set_cards_interactive(interactive: bool) -> void:
+func set_cards_interactive(can_reorder: bool, can_play: bool) -> void:
 	## Enable or disable interaction for all cards in hand
 	##
 	## Used to prevent player actions during CPU turns or when waiting for
 	## game state transitions. When disabled, also cleans up any active drag state.
 	##
-	## @param interactive: Whether cards should respond to clicks and drags
+	## @param can_reorder: Whether cards can be hovered and reordered.
+	## @param can_play: Whether cards can be clicked or dragged out to be played.
 	for card_visual in _cards_in_hand:
 		var interaction = card_visual.get_node_or_null("Interaction")
 		if interaction:
-			interaction.set_interactive(interactive, interactive)
+			interaction.set_interactive(can_reorder, can_play)
 
 	# Also update drag state if interactions are disabled
-	if not interactive:
-		_dragged_card = null
-		if _preview_tween:
-			_preview_tween.kill()
-			_preview_tween = null
-		_preview_insert_index = -1
+	if not can_reorder:
+		if _card_drag_handler:
+			_card_drag_handler.reset_drag_state()
 		_arrange_cards() # Re-arrange to remove any preview gaps
 
 func clear_all_cards() -> void:
@@ -315,11 +292,10 @@ func clear_all_cards() -> void:
 	for card in _cards_in_hand:
 		card.queue_free()
 	_cards_in_hand.clear()
-	_dragged_card = null
-	_preview_insert_index = -1
-	if _preview_tween:
-		_preview_tween.kill()
-		_preview_tween = null
+
+	# Reset drag state via CardDragHandler if it exists
+	if _card_drag_handler:
+		_card_drag_handler.reset_drag_state()
 
 func has_card(card_visual: Node) -> bool:
 	## Checks if the given visual card is currently in this hand.
@@ -334,130 +310,45 @@ func get_cards() -> Array[Node]:
 	## @return: Array of card visual nodes (in current display order)
 	return _cards_in_hand
 
-# ============================================================================
-# DRAG PREVIEW SYSTEM - "Parting the Sea" Animation
-# ============================================================================
-# This system creates a live preview of where a dragged card will be inserted.
-# As the player drags a card over the hand, other cards smoothly animate apart
-# to create a gap, showing exactly where the card will land if dropped.
-# ============================================================================
-
-func _on_card_drag_position_updated(card: Node) -> void:
-	## Throttled callback for drag position updates
+func get_hand_bounds() -> Rect2:
+	## Public wrapper for hand bounds calculation (used by CardDragHandler)
 	##
-	## This is called frequently during drag, so we throttle it based on
-	## preview_update_interval to prevent excessive processing.
-	var now = Time.get_ticks_msec() / 1000.0
-	if now - _last_preview_update < preview_update_interval:
-		return
-	_last_preview_update = now
-	_update_drag_preview(card)
+	## @return: Rect2 defining the hand's bounds in local coordinates
+	return _get_hand_bounds()
 
-func _update_drag_preview(card: Node) -> void:
-	## Update the preview of where the card will be inserted during drag
+func remove_card_visual(card_visual: Node) -> void:
+	## Remove a card visual from the hand array (used by CardDragHandler during drag)
 	##
-	## This is the core of the "parts the sea" effect. It continuously monitors
-	## the dragged card's position and updates the gap in the hand to show where
-	## the card will be inserted if dropped at the current location.
-	##
-	## Behavior:
-	## - When card is over the hand: creates/updates gap at insertion point
-	## - When card leaves hand bounds: collapses the gap back to normal spacing
-	##
-	## @param card: The card being dragged
+	## @param card_visual: The card node to remove
+	_cards_in_hand.erase(card_visual)
 
-	# Check if card is within hand bounds
-	var card_local_pos = card.global_position - global_position
-	var hand_bounds = _get_hand_bounds()
-	var is_in_bounds = hand_bounds.has_point(card_local_pos)
-
-	if not is_in_bounds:
-		# Card is outside hand bounds - collapse preview gap if it exists
-		if _preview_insert_index >= 0:
-			_preview_insert_index = -1
-			# Animate cards back to normal layout (no gap)
-			_animate_cards_to_preview(-1)
+func insert_card_visual(card_visual: Node, index: int) -> void:
+	## Insert a card visual at a specific index (used by CardDragHandler for reordering)
+	##
+	## @param card_visual: The card node to insert
+	## @param index: The index where the card should be inserted
+	if index >= 0 and index <= _cards_in_hand.size():
+		_cards_in_hand.insert(index, card_visual)
 	else:
-		# Calculate insertion index using midpoint-based overlap detection
-		# This uses the same method as _calculate_insertion_index for consistency
-		var preview_idx = _calculate_insertion_index(card)
+		_cards_in_hand.append(card_visual)
 
-		# Only update if the insertion index changed (prevents redundant animations)
-		if preview_idx != _preview_insert_index:
-			_preview_insert_index = preview_idx
-			_animate_cards_to_preview(preview_idx)
-
-func _animate_cards_to_preview(preview_index: int) -> void:
-	## Animate cards to their preview positions with a gap for the dragged card
+func add_card_visual(card_visual: Node) -> void:
+	## Add a card visual to the end of the hand (used by CardDragHandler)
 	##
-	## The "parts the sea" effect: Creates a gap at the insertion point while
-	## maintaining constant total hand width by adjusting all card positions.
+	## @param card_visual: The card node to add
+	_cards_in_hand.append(card_visual)
+
+func rearrange_cards_in_hand() -> void:
+	## Recalculate positions and z-indices for all cards (used by CardDragHandler after reordering)
 	##
-	## How it works:
-	## 1. If preview_index is -1: collapse to normal spacing (card left bounds)
-	## 2. Otherwise: calculate positions with HAND_PREVIEW_GAP at insertion point
-	## 3. All cards are repositioned to maintain centered alignment
-	## 4. Animation is smooth and responsive (0.15s duration)
-	##
-	## Visual example (preview_index = 2):
-	##   Before: [A][B][C][D][E]
-	##   After:  [A][B]  gap  [C][D][E]
-	##                ↑ dragged card will land here
-	##
-	## @param preview_index: Index where the gap should appear (-1 to collapse gap)
-
-	# Kill existing tween to prevent conflicts
-	if _preview_tween:
-		_preview_tween.kill()
-
-	if preview_index < 0:
-		# COLLAPSE MODE: Return to normal spacing (used when card leaves bounds)
-		var card_count = _cards_in_hand.size()
-		var total_width = (card_count - 1) * GameConstants.HAND_CARD_SPACING
-		var start_x = -total_width / 2.0
-
-		_preview_tween = create_tween()
-		_preview_tween.set_trans(Tween.TRANS_QUAD)
-		_preview_tween.set_ease(Tween.EASE_OUT)
-		_preview_tween.set_parallel(true)
-
-		for idx in range(card_count):
-			var target_x = start_x + (idx * GameConstants.HAND_CARD_SPACING)
-			_preview_tween.tween_property(_cards_in_hand[idx], "position:x", target_x, 0.15)
-		return
-
-	# PREVIEW MODE: "Parts the sea" spacing with gap at insertion point
-	#
-	# Algorithm:
-	# 1. Calculate total width including the gap (HAND_PREVIEW_GAP vs HAND_CARD_SPACING)
-	# 2. Cards before insertion point: normal spacing from start
-	# 3. Cards at/after insertion point: normal spacing but shifted by extra gap amount
-	# 4. Result: Gap appears exactly where dragged card will be inserted
-
-	_preview_tween = create_tween()
-	_preview_tween.set_trans(Tween.TRANS_QUAD)
-	_preview_tween.set_ease(Tween.EASE_OUT)
-	_preview_tween.set_parallel(true)
-
-	var total_cards = _cards_in_hand.size()
-	var current_card_offset_idx = 0
-
-	# Calculate total width with the gap
-	# The gap adds GameConstants.HAND_PREVIEW_GAP instead of GameConstants.HAND_CARD_SPACING
-	var total_width_with_gap = (total_cards - 1) * GameConstants.HAND_CARD_SPACING + (GameConstants.HAND_PREVIEW_GAP - GameConstants.HAND_CARD_SPACING)
-	var start_x_with_gap = -total_width_with_gap / 2.0
-
-	for idx in range(total_cards):
-		var target_x = start_x_with_gap + (current_card_offset_idx * GameConstants.HAND_CARD_SPACING)
-		if idx == preview_index:
-			# At the insertion point - add the extra spacing for the gap
-			target_x += (GameConstants.HAND_PREVIEW_GAP - GameConstants.HAND_CARD_SPACING)
-
-		_preview_tween.tween_property(_cards_in_hand[idx], "position:x", target_x, 0.15)
-		current_card_offset_idx += 1
+	## This triggers the full arrangement pipeline: update z-indices, then arrange cards.
+	_update_z_indices()
+	_arrange_cards()
 
 # ============================================================================
 # CARD ARRANGEMENT AND ANIMATION
+# ============================================================================
+# Drag preview animations are now handled by CardDragHandler
 # ============================================================================
 
 func _arrange_cards() -> void:
@@ -495,45 +386,6 @@ func _update_z_indices() -> void:
 	## proper overlap rendering (rightmost cards appear on top).
 	for idx in range(_cards_in_hand.size()):
 		_cards_in_hand[idx].z_index = HAND_Z_INDEX_BASE + idx
-
-func _reorder_card_in_hand(card_visual: Node) -> void:
-	## Reorder a card in the hand based on its current position
-	##
-	## This is called when a card is dragged within the hand and dropped.
-	## It calculates the final insertion position and updates the card order.
-	##
-	## Why this disables auto-sort:
-	## When a player manually reorders their cards, it shows they want a specific
-	## arrangement (e.g., grouping pairs, organizing by suit). Auto-sort would
-	## immediately undo this, so we disable it to respect the player's intent.
-	##
-	## @param card_visual: The card node to reorder
-
-	# Disable auto-sort because player is manually organizing their hand
-	auto_sort_disabled.emit()
-
-	# Validate and remove from current position
-	if card_visual not in _cards_in_hand:
-		return
-
-	_cards_in_hand.erase(card_visual)
-
-	# Calculate new position and insert
-	var new_idx = _calculate_insertion_index(card_visual)
-	_cards_in_hand.insert(new_idx, card_visual)
-
-	# Reset card's interaction state (shadow, hover) FIRST before rearranging
-	# This prevents any interaction-based z-index changes from interfering
-	var interaction = card_visual.get_node_or_null("Interaction")
-	if interaction:
-		# Reset the dragging state in the interaction component immediately
-		if interaction.has_method("reset_hover_state"):
-			interaction.reset_hover_state()
-
-	# Note: z_index is already reset in CardInteraction._end_drag()
-	# Just recalculate final z-indices and positions for all cards
-	_update_z_indices()
-	_arrange_cards()
 
 func _add_card_back(card: Node) -> void:
 	## Add a card back to the hand based on its current position
@@ -665,8 +517,8 @@ func _get_hand_bounds() -> Rect2:
 	## play detection from minor drag movements.
 	##
 	## @return: Rect2 defining the hand's bounds in local coordinates
-	var card_width = Constants.CARD_WIDTH
-	var card_height = Constants.CARD_HEIGHT
+	var card_width = GameConstants.CARD_WIDTH
+	var card_height = GameConstants.CARD_HEIGHT
 
 	if _cards_in_hand.size() == 0:
 		return Rect2(Vector2.ZERO, Vector2(card_width, card_height))
@@ -718,151 +570,21 @@ func _get_card_action_description(card_visual: Node, action_type: String) -> Str
 	return action_type + " - " + card_description
 
 # ============================================================================
-# SIGNAL HANDLERS - Drag Events
+# SIGNAL LISTENERS - Card Drag Coordination
 # ============================================================================
 
-func _setup_drag_listeners():
-	## Connect drag ended signals for all current cards
-	##
-	## This is called during _ready() to set up initial signal connections.
-	## For cards added later (during dealing), connections are made in add_card().
-	for card in _cards_in_hand:
-		_connect_card_drag_listener(card)
-
 func _connect_card_drag_listener(card: Node):
-	## Connect all interaction signals for a single card
+	## Connect all interaction signals for a single card via CardDragHandler
 	##
-	## Sets up listeners for:
+	## Delegates to CardDragHandler which manages all drag event handling:
 	## - drag_started: Track which card is being dragged, remove from array temporarily
 	## - drag_position_updated: Update preview animation during drag
 	## - drag_ended: Finalize card position or detect play to PlayZone
 	## - card_clicked: Handle click-to-play (shortcut for drag-to-PlayZone)
 	##
 	## @param card: The card node to connect signals for
-	var interaction = card.get_node_or_null("Interaction")
-	if interaction:
-		# Disconnect first to avoid duplicate connections (safety measure)
-
-		# Connect drag ended
-		if interaction.has_signal("drag_ended"):
-			if interaction.drag_ended.is_connected(_on_card_drag_ended):
-				interaction.drag_ended.disconnect(_on_card_drag_ended)
-			interaction.drag_ended.connect(_on_card_drag_ended)
-
-		# Connect click
-		if interaction.has_signal("card_clicked"):
-			if interaction.card_clicked.is_connected(_on_card_clicked):
-				interaction.card_clicked.disconnect(_on_card_clicked)
-			interaction.card_clicked.connect(_on_card_clicked)
-
-		# Connect drag started
-		if interaction.has_signal("drag_started"):
-			if interaction.drag_started.is_connected(_on_card_drag_started):
-				interaction.drag_started.disconnect(_on_card_drag_started)
-			interaction.drag_started.connect(_on_card_drag_started)
-
-		# Connect drag position updated
-		if interaction.has_signal("drag_position_updated"):
-			if interaction.drag_position_updated.is_connected(_on_card_drag_position_updated):
-				interaction.drag_position_updated.disconnect(_on_card_drag_position_updated)
-			interaction.drag_position_updated.connect(_on_card_drag_position_updated)
-
-func _on_card_drag_started(card_visual: Node):
-	## Handle when a card drag starts
-	##
-	## Temporarily remove the card from the hand array so it doesn't interfere
-	## with preview calculations. The card will be re-inserted when drag ends.
-	##
-	## @param card_visual: The card being dragged
-	if card_visual in _cards_in_hand:
-		_dragged_card = card_visual
-		_cards_in_hand.erase(card_visual)
-
-	# Forward card drag start to GameScreen
-	card_drag_started.emit(card_visual)
-
-func _on_card_drag_ended(card_visual: Node):
-	## Handle when a card drag ends - determine if card stays in hand or goes to PlayZone
-	##
-	## This is the core decision point for card movement. Based on where the card
-	## was dropped (inside or outside hand bounds), we either:
-	## 1. Reorder it within the hand (inside bounds)
-	## 2. Send it to PlayZone (outside bounds)
-	##
-	## The algorithm carefully handles temporary array removal (from drag_started)
-	## and preview state to ensure cards always end up in the correct position.
-	##
-	## @param card_visual: The card that was dragged
-
-	# Reset drag preview state
-	if _preview_tween:
-		_preview_tween.kill()
-		_preview_tween = null
-
-	var was_dragged_card = (_dragged_card == card_visual)
-	_dragged_card = null
-	var final_preview_index = _preview_insert_index
-	_preview_insert_index = -1
-
-	# Check if this card (which was in the hand) was dragged outside hand bounds
-	# Need to check if card was temporarily removed from array during drag
-	var card_in_hand = card_visual in _cards_in_hand
-	if card_in_hand or was_dragged_card:
-		var card_local_pos = card_visual.global_position - global_position
-		var hand_bounds = _get_hand_bounds()
-
-		if not hand_bounds.has_point(card_local_pos):
-			# CASE 1: Card was dragged OUTSIDE hand bounds
-			# This means the player wants to play this card
-
-			# First, ensure it's back in the array if it was removed during drag
-			if was_dragged_card and not card_in_hand:
-				if final_preview_index >= 0 and final_preview_index <= _cards_in_hand.size():
-					_cards_in_hand.insert(final_preview_index, card_visual)
-				else:
-					_cards_in_hand.append(card_visual)
-			_handle_card_dragged_out(card_visual)
-		else:
-			# CASE 2: Card was dragged WITHIN hand bounds
-			# This means the player is reordering their hand
-
-			if was_dragged_card and not card_in_hand:
-				# Re-insert at the preview position first (temporary placement)
-				if final_preview_index >= 0 and final_preview_index <= _cards_in_hand.size():
-					_cards_in_hand.insert(final_preview_index, card_visual)
-				else:
-					_cards_in_hand.append(card_visual)
-
-			# Now recalculate the final position based on actual card position
-			# This ensures the card ends up in the correct spot after drag ends
-			_reorder_card_in_hand(card_visual)
-	else:
-		# Card was not in hand (must be in PlayZone)
-		# Do nothing here, as PlayZone handles drags for atk cards
-		# This prevents double-processing of drag events
-		pass
-
-func _on_card_clicked(card_visual: Node):
-	## Handle when a card in hand is clicked - shortcut for playing the card
-	##
-	## Clicking a card is equivalent to dragging it out of the hand. This provides
-	## a quick way for players to play cards without needing to drag.
-	##
-	## @param card_visual: The card that was clicked
-	if card_visual in _cards_in_hand:
-		# Card is in hand, so send it to PlayZone (like dragging it out)
-		_handle_card_dragged_out(card_visual)
-	# else: Card is not in hand (probably in PlayZone already)
-	# Do nothing here, as PlayZone handles clicks for atk cards
-
-func _handle_card_dragged_out(card_visual: Node):
-	## Emit signal that a card was dragged/clicked out of the hand
-	##
-	## GameScreen listens to this signal and handles the actual card movement
-	## from hand to PlayZone, including all game logic validation.
-	##
-	## @param card_visual: The card being moved out of hand
-	card_dragged_out.emit(card_visual)
+	if _card_drag_handler:
+		_card_drag_handler.connect_card_drag_listeners(card)
 
 # ============================================================================
 # EDITOR PREVIEW
@@ -875,8 +597,11 @@ func _setup_editor_preview() -> void:
 	## so developers can see how the layout looks and make adjustments to spacing,
 	## positioning, etc. Cards cycle through all ranks and suits for variety.
 
-	# Clear any existing cards
+	# Clear any existing cards, but preserve CardDragHandler
 	for child in get_children():
+		# Skip CardDragHandler - it must persist throughout the game
+		if child is CardDragHandler:
+			continue
 		child.queue_free()
 
 	_cards_in_hand.clear()

@@ -25,7 +25,7 @@ var card_back_sprite: AtlasTexture
 ## The loaded spritesheet texture
 var texture: Texture2D
 ## Whether to use dark mode (true) or light mode (false) for cards
-var use_dark_mode: bool = true
+var use_dark_mode: bool = false
 
 ## ============================================================================
 ## LIFECYCLE
