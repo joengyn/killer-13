@@ -17,10 +17,10 @@ config/icon="res://icon.svg"
 
 [autoload]
 
-Constants="*res://scripts/constants.gd"
+Constants="*res://scripts/core/constants.gd"
 CardLoader="*res://scripts/card/card_loader.gd"
-GameManager="*res://scripts/game_manager.gd"
-CardPool="*res://scripts/card_pool.gd"
+GameManager="*res://scripts/core/game_manager.gd"
+CardPool="*res://scripts/core/card_pool.gd"
 
 [display]
 

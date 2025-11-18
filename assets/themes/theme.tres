@@ -1,6 +1,6 @@
-[gd_resource type="Theme" load_steps=7 format=3 uid="uid://so6edtjd4yf"]
+[gd_resource type="Theme" load_steps=7 format=3 uid="uid://ddd872xm0x3ui"]
 
-[ext_resource type="FontFile" path="res://assets/rainyhearts.ttf" id="1_5x3i2"]
+[ext_resource type="FontFile" uid="uid://cugnpp2dnvw3s" path="res://assets/fonts/rainyhearts.ttf" id="1_5x3i2"]
 
 [sub_resource type="StyleBoxFlat" id="StyleBoxFlat_disabled"]
 content_margin_left = 40.0

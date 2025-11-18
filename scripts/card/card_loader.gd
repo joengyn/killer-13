@@ -28,7 +28,7 @@ func _ready() -> void:
 
 ## Load all card sprites from the spritesheet and populate the card_sprites dictionary
 func load_sprites() -> void:
-	texture = preload("res://assets/colored-cards.png")
+	texture = preload("res://assets/graphics/colored-cards.png")
 	if not texture:
 		push_error("CardLoader: Failed to load spritesheet")
 		return

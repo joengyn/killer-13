@@ -1,0 +1,6 @@
+[gd_scene load_steps=2 format=3 uid="uid://2rr0pgluv8ba"]
+
+[ext_resource type="Script" uid="uid://1x0cbhwn8b6r" path="res://scripts/components/cpu_hand.gd" id="2_cpu_hand"]
+
+[node name="CPUHand" type="Node2D"]
+script = ExtResource("2_cpu_hand")
